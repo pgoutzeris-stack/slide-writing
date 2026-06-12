@@ -50,18 +50,23 @@ body{font-family:'Circular Std',system-ui,sans-serif;color:var(--ink);background
 .top-bar-brand .dot{width:7px;height:7px;border-radius:50%;background:var(--brand)}
 .filename-chip{font-size:.8rem;color:var(--muted);background:var(--bg-surface);border:1px solid var(--line);border-radius:var(--radius-pill);padding:.2rem .75rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .top-bar-right{margin-left:auto;display:flex;align-items:center;gap:.75rem}
+.icon-btn{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.85rem;transition:all .2s ease}
+.icon-btn:hover{border-color:var(--brand);color:var(--brand)}
 .workspace{flex:1;display:flex;overflow:hidden}
 
 /* Slide Rail */
-#slide-rail{width:190px;flex-shrink:0;border-right:1px solid var(--line);overflow-y:auto;background:var(--bg-surface);padding:.5rem}
+#slide-rail{width:200px;flex-shrink:0;border-right:1px solid var(--line);overflow-y:auto;background:var(--bg-surface);padding:.5rem}
 .rail-header{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:.5rem .5rem .75rem}
-.slide-thumb{border-radius:10px;padding:.6rem .75rem;cursor:pointer;margin-bottom:.25rem;border:1.5px solid transparent;transition:all .2s ease;background:#fff;box-shadow:var(--shadow-sm)}
-.slide-thumb:hover{border-color:var(--brand-light)}
-.slide-thumb.active{border-color:var(--brand);background:var(--brand-light)}
-.slide-thumb-num{font-size:.65rem;font-weight:700;color:var(--brand);margin-bottom:.2rem}
-.slide-thumb-title{font-size:.78rem;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
-.slide-thumb-meta{display:flex;gap:.4rem;margin-top:.3rem;flex-wrap:wrap}
-.meta-chip{font-size:.6rem;font-weight:600;padding:.15rem .4rem;border-radius:4px;color:var(--muted);background:var(--bg-surface);border:1px solid var(--line)}
+.slide-thumb{border-radius:10px;overflow:hidden;cursor:pointer;margin-bottom:.4rem;border:1.5px solid transparent;transition:all .2s ease;background:#fff;box-shadow:var(--shadow-sm)}
+.slide-thumb:hover{border-color:var(--brand-light);box-shadow:var(--shadow)}
+.slide-thumb.active{border-color:var(--brand)}
+.slide-thumb-preview{width:100%;aspect-ratio:16/9;background:var(--bg-surface);overflow:hidden;position:relative}
+.slide-thumb-preview svg{width:100%;height:100%}
+.slide-thumb-info{padding:.35rem .5rem .45rem}
+.slide-thumb-num{font-size:.62rem;font-weight:700;color:var(--brand);margin-bottom:.1rem}
+.slide-thumb-title{font-size:.72rem;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
+.slide-thumb-meta{display:flex;gap:.3rem;margin-top:.25rem;flex-wrap:wrap}
+.meta-chip{font-size:.58rem;font-weight:600;padding:.12rem .35rem;border-radius:4px;color:var(--muted);background:var(--bg-surface);border:1px solid var(--line)}
 .meta-chip.chart{color:#7c3aed;background:#f5f3ff;border-color:#ddd6fe}
 .meta-chip.table{color:#0369a1;background:#e0f2fe;border-color:#bae6fd}
 .meta-chip.img{color:#0f766e;background:#f0fdfa;border-color:#99f6e4}
@@ -77,21 +82,46 @@ body{font-family:'Circular Std',system-ui,sans-serif;color:var(--ink);background
 .tab-panel.active{display:block}
 
 /* Analyse */
-.section-title{font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.75rem}
-.design-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem}
+.section-title{font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.75rem;margin-top:1.5rem}
+.section-title:first-child{margin-top:0}
+.design-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
 .design-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:1.25rem;box-shadow:var(--shadow-sm)}
 .design-card h4{font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem}
 .color-row{display:flex;gap:.5rem;flex-wrap:wrap}
 .color-swatch{width:32px;height:32px;border-radius:8px;border:1px solid rgba(0,0,0,.08);cursor:pointer;position:relative;flex-shrink:0}
-.color-swatch::after{content:attr(data-label);position:absolute;bottom:calc(100%+4px);left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;font-size:.65rem;padding:.2rem .4rem;border-radius:4px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s}
+.color-swatch::after{content:attr(title);position:absolute;bottom:calc(100%+4px);left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;font-size:.65rem;padding:.2rem .4rem;border-radius:4px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s}
 .color-swatch:hover::after{opacity:1}
 .font-display{font-size:1.1rem;color:var(--ink);font-weight:600;margin:.25rem 0 .1rem}
 .font-sub{font-size:.78rem;color:var(--muted)}
-.stat-row{display:flex;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap}
+.stat-row{display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap}
 .stat-box{flex:1;min-width:80px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:.875rem 1rem;box-shadow:var(--shadow-sm);text-align:center}
 .stat-box .value{font-size:1.6rem;font-weight:700;color:var(--brand);line-height:1}
 .stat-box .label{font-size:.72rem;color:var(--muted);margin-top:.25rem;font-weight:500}
-.layouts-list{display:flex;flex-direction:column;gap:.4rem;margin-bottom:1.5rem}
+
+/* Element Detection */
+.elem-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:.6rem;margin-bottom:1rem}
+.elem-card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:.75rem .9rem;display:flex;align-items:center;gap:.65rem;box-shadow:var(--shadow-sm)}
+.elem-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0}
+.elem-icon.chart{background:#f5f3ff;color:#7c3aed}
+.elem-icon.table{background:#e0f2fe;color:#0369a1}
+.elem-icon.image{background:#f0fdfa;color:#0f766e}
+.elem-icon.shape{background:var(--bg-surface);color:var(--muted)}
+.elem-icon.connector{background:#fff7ed;color:#c2410c}
+.elem-label{font-size:.8rem;font-weight:600;color:var(--ink);line-height:1.2}
+.elem-count{font-size:.7rem;color:var(--muted)}
+
+/* Element Picker */
+.picker-notice{background:var(--brand-light);border-left:4px solid var(--brand);border-radius:8px;padding:.875rem 1rem;margin-bottom:1rem;font-size:.85rem;color:var(--brand-dark)}
+.picker-notice strong{display:block;margin-bottom:.25rem;font-size:.875rem}
+.picker-groups{display:flex;flex-direction:column;gap:1rem;margin-bottom:1rem}
+.picker-group h5{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:.5rem}
+.picker-items{display:flex;flex-wrap:wrap;gap:.4rem}
+.picker-item{display:flex;align-items:center;gap:.4rem;padding:.35rem .75rem;border-radius:var(--radius-pill);border:1.5px solid var(--line);background:#fff;font-size:.8rem;cursor:pointer;transition:all .2s ease;user-select:none}
+.picker-item:hover{border-color:var(--brand);color:var(--brand)}
+.picker-item.selected{border-color:var(--brand);background:var(--brand-light);color:var(--brand);font-weight:600}
+.picker-item i{font-size:.78rem}
+
+.layouts-list{display:flex;flex-direction:column;gap:.4rem;margin-bottom:1rem}
 .layout-item{display:flex;align-items:center;gap:.75rem;background:#fff;border:1px solid var(--line);border-radius:8px;padding:.5rem .75rem;font-size:.82rem}
 .layout-type-badge{font-size:.68rem;font-weight:700;padding:.15rem .5rem;border-radius:4px;background:var(--brand-light);color:var(--brand);white-space:nowrap}
 .slides-table{width:100%;border-collapse:separate;border-spacing:0 .3rem}
@@ -132,6 +162,21 @@ body{font-family:'Circular Std',system-ui,sans-serif;color:var(--ink);background
 .gen-bar{padding:.75rem 1rem;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:.75rem}
 .gen-hint{font-size:.78rem;color:var(--muted)}
 .gen-actions{display:flex;gap:.5rem}
+
+/* Admin Modal */
+.modal-overlay{position:fixed;inset:0;z-index:1000;background:rgba(15,23,42,.55);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;padding:1rem}
+.modal-overlay.open{display:flex}
+.modal-card{background:#fff;border-radius:var(--radius);box-shadow:0 24px 64px rgba(15,23,42,.18);width:min(480px,100%);padding:2rem}
+.modal-card h2{font-size:1.1rem;font-weight:700;margin-bottom:.25rem}
+.modal-card p{font-size:.875rem;color:var(--muted);margin-bottom:1.5rem;line-height:1.5}
+.form-group{margin-bottom:1.25rem}
+.form-label{font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:.4rem}
+.form-input{width:100%;border:1px solid var(--line);border-radius:8px;padding:.6rem .9rem;font-family:inherit;font-size:.875rem;color:var(--ink);background:#fff;transition:border-color .2s}
+.form-input:focus{border-color:var(--brand);box-shadow:0 0 0 2px rgba(32,110,251,.1);outline:none}
+.modal-footer{display:flex;gap:.75rem;justify-content:flex-end;margin-top:1.5rem}
+.key-status{display:flex;align-items:center;gap:.4rem;font-size:.78rem;padding:.2rem .6rem;border-radius:var(--radius-pill);font-weight:600}
+.key-status.set{background:#dcfce7;color:#15803d}
+.key-status.unset{background:#fee2e2;color:#dc2626}
 
 /* Utilities */
 .empty-state{text-align:center;padding:2.5rem 1rem;color:var(--muted)}
@@ -177,6 +222,10 @@ body{font-family:'Circular Std',system-ui,sans-serif;color:var(--ink);background
     <div class="top-bar-brand"><span class="dot"></span>Slide Writing</div>
     <div class="filename-chip" id="filename-chip">datei.pptx</div>
     <div class="top-bar-right">
+      <div id="key-status-chip"></div>
+      <button class="icon-btn" id="settings-btn" title="API-Schlüssel konfigurieren">
+        <i class="fa-solid fa-gear"></i>
+      </button>
       <button class="btn-secondary" id="new-upload-btn">
         <i class="fa-solid fa-arrow-up-from-bracket"></i> Neue Datei
       </button>
@@ -213,6 +262,10 @@ body{font-family:'Circular Std',system-ui,sans-serif;color:var(--ink);background
               <div id="fonts-display"></div>
             </div>
           </div>
+
+          <div class="section-title">Erkannte Elemente</div>
+          <div id="elem-section"></div>
+
           <div class="section-title">Layouts im Template</div>
           <div class="layouts-list" id="layouts-list"></div>
           <div class="section-title">Folien-Übersicht</div>
@@ -268,18 +321,36 @@ body{font-family:'Circular Std',system-ui,sans-serif;color:var(--ink);background
   </div>
 </div>
 
+<!-- ADMIN API KEY MODAL -->
+<div class="modal-overlay" id="admin-modal">
+  <div class="modal-card">
+    <h2><i class="fa-solid fa-key" style="color:var(--brand);margin-right:.5rem"></i>Gemini API-Schlüssel</h2>
+    <p>Trage hier den Google Gemini API-Schlüssel ein. Er wird nur in diesem Browser gespeichert und bei jedem KI-Aufruf an den Server übertragen.</p>
+    <div class="form-group">
+      <label class="form-label" for="api-key-input">API-Schlüssel</label>
+      <input class="form-input" type="password" id="api-key-input" placeholder="AIzaSy…" autocomplete="off">
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" id="modal-cancel-btn">Abbrechen</button>
+      <button class="btn-primary" id="modal-save-btn"><i class="fa-solid fa-floppy-disk"></i> Speichern</button>
+    </div>
+  </div>
+</div>
+
 <script>
 'use strict';
 
 // ── Config ──────────────────────────────────────────────────
 const SB_FUNC = 'https://csmguwcvzreefluhahyu.supabase.co/functions/v1/slide-writing-ai';
 const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNzbWd1d2N2enJlZWZsdWhhaHl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NjM0ODcsImV4cCI6MjA5MjUzOTQ4N30.Fiafx7XBaQZXUX3bKQIBH7znBHx3B51yL-bftOHsL4Q';
+const KEY_LS  = 'sw_gemini_key';
 
 const NSMAP = {
   p:   'http://schemas.openxmlformats.org/presentationml/2006/main',
   a:   'http://schemas.openxmlformats.org/drawingml/2006/main',
   r:   'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
   rel: 'http://schemas.openxmlformats.org/package/2006/relationships',
+  c:   'http://schemas.openxmlformats.org/drawingml/2006/chart',
 };
 const CHART_URI = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
 const TABLE_URI = 'http://schemas.openxmlformats.org/drawingml/2006/table';
@@ -290,10 +361,72 @@ const SLIDE_LABELS = {
   gantt:'Gantt',pie:'Diagramm',blank:'Leer',
 };
 
+// Element catalog for picker
+const ELEM_CATALOG = [
+  { group:'Diagramme', icon:'fa-chart-bar', items:[
+    {id:'col_chart',   label:'Säulendiagramm',     icon:'fa-chart-column'},
+    {id:'bar_chart',   label:'Balkendiagramm',      icon:'fa-chart-bar'},
+    {id:'line_chart',  label:'Liniendiagramm',      icon:'fa-chart-line'},
+    {id:'pie_chart',   label:'Kreisdiagramm',       icon:'fa-chart-pie'},
+    {id:'donut_chart', label:'Ringdiagramm',        icon:'fa-circle-notch'},
+    {id:'area_chart',  label:'Flächendiagramm',     icon:'fa-chart-area'},
+    {id:'scatter',     label:'Punktdiagramm',       icon:'fa-braille'},
+    {id:'waterfall',   label:'Wasserfalldiagramm',  icon:'fa-water'},
+    {id:'combo_chart', label:'Kombi-Diagramm',      icon:'fa-layer-group'},
+    {id:'bubble',      label:'Blasendiagramm',      icon:'fa-circle'},
+    {id:'radar',       label:'Netzdiagramm',        icon:'fa-star'},
+  ]},
+  { group:'Tabellen', icon:'fa-table', items:[
+    {id:'table',         label:'Tabelle',           icon:'fa-table'},
+    {id:'table_status',  label:'Status-Tabelle',    icon:'fa-traffic-light'},
+    {id:'comparison',    label:'Vergleichsmatrix',  icon:'fa-table-columns'},
+  ]},
+  { group:'Formen & Objekte', icon:'fa-shapes', items:[
+    {id:'rect',      label:'Rechteck',        icon:'fa-square'},
+    {id:'rect_r',    label:'Abger. Rechteck', icon:'fa-square'},
+    {id:'ellipse',   label:'Ellipse / Kreis', icon:'fa-circle'},
+    {id:'triangle',  label:'Dreieck',         icon:'fa-play'},
+    {id:'diamond',   label:'Raute',           icon:'fa-diamond'},
+    {id:'hexagon',   label:'Sechseck',        icon:'fa-hexagon'},
+    {id:'arrow',     label:'Pfeil',           icon:'fa-arrow-right'},
+    {id:'chevron',   label:'Chevron',         icon:'fa-angles-right'},
+    {id:'callout',   label:'Sprechblase',     icon:'fa-comment'},
+    {id:'star',      label:'Stern',           icon:'fa-star'},
+    {id:'bracket',   label:'Klammer',         icon:'fa-brackets-curly'},
+  ]},
+  { group:'Text', icon:'fa-font', items:[
+    {id:'textbox',   label:'Textfeld',         icon:'fa-font'},
+    {id:'title_ph',  label:'Titel-Platzhalter',icon:'fa-heading'},
+    {id:'body_ph',   label:'Bullet-Liste',     icon:'fa-list'},
+    {id:'quote',     label:'Zitat',            icon:'fa-quote-left'},
+  ]},
+  { group:'Prozesse & SmartArt', icon:'fa-diagram-project', items:[
+    {id:'process',    label:'Prozessablauf',   icon:'fa-diagram-project'},
+    {id:'cycle',      label:'Zyklus',          icon:'fa-rotate'},
+    {id:'hierarchy',  label:'Organigramm',     icon:'fa-sitemap'},
+    {id:'matrix',     label:'Matrix',          icon:'fa-border-all'},
+    {id:'pyramid',    label:'Pyramide',        icon:'fa-triangle'},
+    {id:'timeline',   label:'Timeline',        icon:'fa-timeline'},
+    {id:'gantt',      label:'Gantt',           icon:'fa-bars-progress'},
+  ]},
+  { group:'Consulting-Bausteine', icon:'fa-gauge-high', items:[
+    {id:'harvey',     label:'Harvey Ball',     icon:'fa-circle-half-stroke'},
+    {id:'traffic',    label:'Ampel',           icon:'fa-traffic-light'},
+    {id:'kpi_tile',   label:'KPI-Kachel',      icon:'fa-gauge-high'},
+    {id:'callout_box',label:'Callout-Box',     icon:'fa-circle-info'},
+  ]},
+  { group:'Bilder & Medien', icon:'fa-image', items:[
+    {id:'image',  label:'Bild / Foto',  icon:'fa-image'},
+    {id:'icon',   label:'Icon',         icon:'fa-icons'},
+    {id:'video',  label:'Video',        icon:'fa-video'},
+  ]},
+];
+
 // App state
 const S = {
   file:null, filename:'', entries:null, analysis:null,
   messages:[], draftSpec:null, activeSlide:0,
+  pickerSelected: new Set(),
 };
 
 // ── CRC32 ───────────────────────────────────────────────────
@@ -360,7 +493,7 @@ function buildZip(entries) {
     const lh = new Uint8Array(30+nb.length);
     const lv = new DataView(lh.buffer);
     lv.setUint32(0,0x04034b50,true); lv.setUint16(4,20,true);
-    lv.setUint16(6,0,true); lv.setUint16(8,0,true); // STORE
+    lv.setUint16(6,0,true); lv.setUint16(8,0,true);
     lv.setUint16(10,0,true); lv.setUint16(12,0x4A52,true);
     lv.setUint32(14,chk,true); lv.setUint32(18,sz,true); lv.setUint32(22,sz,true);
     lv.setUint16(26,nb.length,true); lv.setUint16(28,0,true);
@@ -393,8 +526,8 @@ function buildZip(entries) {
 // ── XML UTILS ───────────────────────────────────────────────
 const DEC = new TextDecoder(), ENC2 = new TextEncoder();
 const parseXml = d => new DOMParser().parseFromString(typeof d==='string'?d:DEC.decode(d),'text/xml');
-const xq  = (el,ns,n) => [...el.getElementsByTagNameNS(NSMAP[ns],n)];
-const xq1 = (el,ns,n) => el.getElementsByTagNameNS(NSMAP[ns],n)[0]||null;
+const xq  = (el,ns,n) => [...el.getElementsByTagNameNS(NSMAP[ns]||ns,n)];
+const xq1 = (el,ns,n) => el.getElementsByTagNameNS(NSMAP[ns]||ns,n)[0]||null;
 
 function parseRels(data) {
   if (!data) return {};
@@ -419,6 +552,164 @@ function resolveTgt(src, tgt) {
 
 const xmlEsc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
+// ── SHAPE ANALYSIS ─────────────────────────────────────────
+const PRST_LABELS = {
+  rect:'Rechteck', roundRect:'Abger. Rechteck', ellipse:'Ellipse', triangle:'Dreieck',
+  rtTriangle:'Rechtwinkliges Dreieck', diamond:'Raute', parallelogram:'Parallelogramm',
+  trapezoid:'Trapez', hexagon:'Sechseck', octagon:'Achteck', star5:'Stern',
+  rightArrow:'Pfeil', leftArrow:'Pfeil links', upArrow:'Pfeil oben', downArrow:'Pfeil unten',
+  bentArrow:'Gebogener Pfeil', circularArrow:'Kreispfeil', uturnArrow:'U-Pfeil',
+  chevron:'Chevron', ribbon:'Banner', wave:'Welle',
+  flowChartProcess:'Prozess (Flowchart)', flowChartDecision:'Entscheidung (Flowchart)',
+  flowChartTerminator:'Start/Ende (Flowchart)', flowChartPredefinedProcess:'Vordefinierter Prozess',
+  flowChartConnector:'Verbinder (Flowchart)', flowChartDocument:'Dokument (Flowchart)',
+  callout1:'Sprechblase', wedgeRectCallout:'Sprechblase (eckig)',
+  wedgeRoundRectCallout:'Sprechblase (rund)', cloudCallout:'Wolken-Callout',
+  line:'Linie', straightConnector1:'Linie', bentConnector3:'Abgewinkelte Linie',
+};
+
+const PH_LABELS = {
+  title:'Titel-Platzhalter', ctrTitle:'Titel-Platzhalter', subTitle:'Untertitel',
+  body:'Inhalt-Platzhalter', obj:'Objekt-Platzhalter', dt:'Datum', ftr:'Fußzeile',
+  sldNum:'Foliennummer', pic:'Bild-Platzhalter',
+};
+
+const CHART_TYPE_LABELS = {
+  barChart:'Balken-/Säulendiagramm', lineChart:'Liniendiagramm', pieChart:'Kreisdiagramm',
+  doughnutChart:'Ringdiagramm', areaChart:'Flächendiagramm', scatterChart:'Punktdiagramm',
+  bubbleChart:'Blasendiagramm', radarChart:'Netzdiagramm', stockChart:'Kursdiagramm',
+  surface3DChart:'Flächendiagramm 3D', bar3DChart:'Balkendiagramm 3D',
+  line3DChart:'Liniendiagramm 3D', pie3DChart:'Kreisdiagramm 3D',
+};
+
+const CHART_ICON = {
+  barChart:'fa-chart-bar', lineChart:'fa-chart-line', pieChart:'fa-chart-pie',
+  doughnutChart:'fa-circle-notch', areaChart:'fa-chart-area', scatterChart:'fa-braille',
+  bubbleChart:'fa-circle', radarChart:'fa-star',
+};
+
+function detectChartType(chartData) {
+  if (!chartData) return 'chart';
+  const s = DEC.decode(chartData);
+  for (const t of Object.keys(CHART_TYPE_LABELS)) {
+    if (s.includes('<c:'+t) || s.includes('<c:'+t.replace('Chart','3DChart'))) return t;
+  }
+  return 'chart';
+}
+
+function getShapeBox(el) {
+  const xfrm = el.getElementsByTagNameNS(NSMAP.a,'xfrm')[0];
+  if (!xfrm) return null;
+  const off = xfrm.getElementsByTagNameNS(NSMAP.a,'off')[0];
+  const ext = xfrm.getElementsByTagNameNS(NSMAP.a,'ext')[0];
+  if (!off || !ext) return null;
+  return {
+    x:+off.getAttribute('x')||0, y:+off.getAttribute('y')||0,
+    w:+ext.getAttribute('cx')||0, h:+ext.getAttribute('cy')||0,
+  };
+}
+
+function analyzeSlideShapes(doc, sRels, entries) {
+  const tree = xq1(doc,'p','spTree');
+  if (!tree) return {shapes:0,images:0,tables:0,charts:0,connectors:0,elements:[],shapeItems:[]};
+  let shapes=0,images=0,tables=0,charts=0,connectors=0;
+  const elements=[], shapeItems=[];
+
+  for (const ch of tree.children) {
+    const ln = ch.localName;
+    const box = getShapeBox(ch);
+
+    if (ln==='sp') {
+      shapes++;
+      const ph = ch.getElementsByTagNameNS(NSMAP.p,'ph')[0];
+      const phType = ph?.getAttribute('type')||'';
+      const prstGeom = ch.getElementsByTagNameNS(NSMAP.a,'prstGeom')[0];
+      const prst = prstGeom?.getAttribute('prst')||'rect';
+      const isPlaceholder = !!ph;
+      const label = phType ? (PH_LABELS[phType]||'Platzhalter') : (PRST_LABELS[prst]||'Form');
+      elements.push({type:'shape', label, prst, phType, isPlaceholder});
+      if (box) shapeItems.push({...box, shapeType: phType||prst, isPlaceholder});
+    } else if (ln==='pic') {
+      images++;
+      elements.push({type:'image', label:'Bild'});
+      if (box) shapeItems.push({...box, shapeType:'image'});
+    } else if (ln==='graphicFrame') {
+      const gd = ch.getElementsByTagNameNS(NSMAP.a,'graphicData')[0];
+      const uri = gd?.getAttribute('uri')||'';
+      if (uri===CHART_URI) {
+        charts++;
+        let chartType = 'chart';
+        try {
+          // Find chart rId from c:chart element
+          const ns = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
+          const cEl = gd.getElementsByTagNameNS(ns,'chart')[0];
+          const rId = cEl?.getAttributeNS(NSMAP.r,'id') || cEl?.getAttribute('r:id');
+          if (rId && sRels && sRels[rId]) {
+            const chartPn = rId && sRels[rId] ? resolveTgt('ppt/slides/slide1.xml', '../'+sRels[rId].target) : null;
+            // Find chart part in entries
+            const chartKey = chartPn ? Object.keys(entries||{}).find(k=>k.endsWith(sRels[rId].target.split('/').pop())) : null;
+            if (chartKey) chartType = detectChartType(entries[chartKey]);
+          }
+        } catch {/* ignore */}
+        elements.push({type:'chart', label: CHART_TYPE_LABELS[chartType]||'Diagramm', chartType});
+        if (box) shapeItems.push({...box, shapeType:'chart', chartType});
+      } else if (uri===TABLE_URI) {
+        tables++;
+        elements.push({type:'table', label:'Tabelle'});
+        if (box) shapeItems.push({...box, shapeType:'table'});
+      } else {
+        shapes++;
+        if (box) shapeItems.push({...box, shapeType:'other'});
+      }
+    } else if (ln==='cxnSp') {
+      connectors++;
+      elements.push({type:'connector', label:'Verbinder / Linie'});
+    } else if (ln==='grpSp') {
+      shapes++;
+      elements.push({type:'group', label:'Gruppe'});
+      if (box) shapeItems.push({...box, shapeType:'group'});
+    }
+  }
+  return {shapes,images,tables,charts,connectors,elements,shapeItems};
+}
+
+// ── SLIDE SVG PREVIEW ──────────────────────────────────────
+function renderSlideSvg(slide, analysis) {
+  const W=168, H=94;
+  const SW = analysis.slideWidth||12192000;
+  const SH = analysis.slideHeight||6858000;
+  const sx=W/SW, sy=H/SH;
+  const bg = '#'+( analysis.theme.colors.lt1||'FFFFFF');
+
+  const FILL = {
+    title:'rgba(15,23,42,.12)', ctrTitle:'rgba(15,23,42,.12)',
+    subTitle:'rgba(15,23,42,.07)', body:'rgba(15,23,42,.06)',
+    obj:'rgba(15,23,42,.06)', chart:'rgba(32,110,251,.15)',
+    table:'rgba(3,105,161,.13)', image:'rgba(15,118,110,.12)',
+    group:'rgba(15,23,42,.06)', other:'rgba(15,23,42,.04)',
+  };
+
+  let shapes='';
+  for (const it of slide.shapeItems||[]) {
+    const x=(it.x*sx).toFixed(1), y=(it.y*sy).toFixed(1);
+    const w=Math.max(it.w*sx,2).toFixed(1), h=Math.max(it.h*sy,2).toFixed(1);
+    const f = FILL[it.shapeType]||FILL.other;
+    shapes += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1.5" fill="${f}"/>`;
+  }
+
+  // If no shapeItems, show generic layout placeholder
+  if (!shapes) {
+    shapes = `<rect x="10" y="10" width="${W-20}" height="16" rx="2" fill="rgba(15,23,42,.1)"/>
+              <rect x="10" y="32" width="${W-40}" height="8" rx="2" fill="rgba(15,23,42,.06)"/>
+              <rect x="10" y="44" width="${W-50}" height="8" rx="2" fill="rgba(15,23,42,.06)"/>`;
+  }
+
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+    <rect width="${W}" height="${H}" fill="${bg}" rx="0"/>
+    ${shapes}
+  </svg>`;
+}
+
 // ── PPTX ANALYZER ──────────────────────────────────────────
 async function analyzePptx(entries) {
   const a = { slideWidth:12192000, slideHeight:6858000,
@@ -434,7 +725,6 @@ async function analyzePptx(entries) {
   }
   const presRels = parseRels(entries[relsKey('ppt/presentation.xml')]);
 
-  // Master
   const mRel = Object.values(presRels).find(r=>r.type.endsWith('/slideMaster'));
   if (!mRel) throw new Error('Kein Slide Master in der Datei');
   const masterPn = resolveTgt('ppt/presentation.xml', mRel.target);
@@ -491,12 +781,19 @@ async function analyzePptx(entries) {
     const sdoc = parseXml(sd);
     const sRels = parseRels(entries[relsKey(spn)]);
     const lRel = Object.values(sRels).find(r=>r.type.endsWith('/slideLayout'));
+    const analyzed = analyzeSlideShapes(sdoc, sRels, entries);
     a.slides.push({
       index: a.slides.length,
       partname: spn,
       layoutPartname: lRel ? resolveTgt(spn, lRel.target) : '',
       title: extractTitle(sdoc),
-      counts: countShapes(sdoc),
+      counts: {
+        shapes:analyzed.shapes, images:analyzed.images,
+        tables:analyzed.tables, charts:analyzed.charts,
+        connectors:analyzed.connectors
+      },
+      elements: analyzed.elements,
+      shapeItems: analyzed.shapeItems,
     });
   }
   return a;
@@ -514,24 +811,6 @@ function extractTitle(doc) {
     }
   }
   return null;
-}
-
-function countShapes(doc) {
-  const tree = xq1(doc,'p','spTree');
-  if (!tree) return {shapes:0,images:0,tables:0,charts:0,connectors:0};
-  let shapes=0,images=0,tables=0,charts=0,connectors=0;
-  for (const ch of tree.children) {
-    const ln = ch.localName;
-    if (ln==='sp') shapes++;
-    else if (ln==='pic') images++;
-    else if (ln==='graphicFrame') {
-      const gd=ch.getElementsByTagNameNS(NSMAP.a,'graphicData')[0];
-      const uri=gd?.getAttribute('uri')||'';
-      if (uri===CHART_URI) charts++; else if (uri===TABLE_URI) tables++; else shapes++;
-    } else if (ln==='cxnSp') connectors++;
-    else if (ln==='grpSp') shapes++;
-  }
-  return {shapes,images,tables,charts,connectors};
 }
 
 // ── SLIDE XML BUILDER ───────────────────────────────────────
@@ -600,35 +879,27 @@ function buildSlideXml(spec) {
     shp = ph('title',null,'Title 1',spec.title||'')
         + buildTableShape(id++, spec.columns, spec.rows);
   } else if (type==='agenda' && spec.items?.length) {
-    const bullets = spec.items.map((it,i) => ({
-      text: `${i+1}. ${it}`, level:0
-    }));
-    shp = ph('title',null,'Title 1',spec.title||'')
-        + ph(null,1,'Content 2',bullets);
+    const bullets = spec.items.map((it,i) => ({text:`${i+1}. ${it}`, level:0}));
+    shp = ph('title',null,'Title 1',spec.title||'') + ph(null,1,'Content 2',bullets);
   } else if (type==='kpi' && spec.kpis?.length) {
     const bullets = spec.kpis.map(k =>
       ({text:`${k.value}  ${k.label}${k.delta?' ('+k.delta+')':''}`, level:0})
     );
-    shp = ph('title',null,'Title 1',spec.title||'')
-        + ph(null,1,'Content 2',bullets);
+    shp = ph('title',null,'Title 1',spec.title||'') + ph(null,1,'Content 2',bullets);
   } else if (type==='timeline' && spec.phases?.length) {
     const bullets = spec.phases.map(p => ({text:p.label+(p.sub?' — '+p.sub:''),level:0}));
-    shp = ph('title',null,'Title 1',spec.title||'')
-        + ph(null,1,'Content 2',bullets);
+    shp = ph('title',null,'Title 1',spec.title||'') + ph(null,1,'Content 2',bullets);
   } else if (type==='waterfall' && spec.items?.length) {
     const bullets = spec.items.map(it =>
       ({text:`${it.label}: ${it.value>0?'+':''}${it.value}`,level:0})
     );
-    shp = ph('title',null,'Title 1',spec.title||'')
-        + ph(null,1,'Content 2',bullets);
+    shp = ph('title',null,'Title 1',spec.title||'') + ph(null,1,'Content 2',bullets);
   } else if (type==='bars' && spec.categories?.length) {
     const bullets = spec.categories.map((c,i) =>
       ({text:`${c}: ${spec.values?.[i]??''}`,level:0})
     );
-    shp = ph('title',null,'Title 1',spec.title||'')
-        + ph(null,1,'Content 2',bullets);
+    shp = ph('title',null,'Title 1',spec.title||'') + ph(null,1,'Content 2',bullets);
   } else {
-    // Generic: title + bullets/content
     const bullets = normalizeBullets(spec.bullets||spec.items||[]);
     let extra = [];
     if (!bullets.length) extra.push({text:`[${SLIDE_LABELS[type]||type} — Inhalt in PowerPoint ergänzen]`,level:0});
@@ -691,67 +962,64 @@ function buildSlideRels(layoutTarget) {
 // ── PPTX GENERATOR ─────────────────────────────────────────
 async function generatePptx(entries, specs, analysis) {
   const out = {...entries};
-
-  // Next slide number
   const nums = Object.keys(out).filter(k=>/^ppt\/slides\/slide\d+\.xml$/.test(k))
     .map(k=>+k.match(/slide(\d+)/)[1]);
   let nextNum = nums.length ? Math.max(...nums)+1 : 1;
-
-  // Max slide id
   const presXmlStr = DEC.decode(out['ppt/presentation.xml']);
   let maxId = 255;
   for (const m of presXmlStr.matchAll(/sldId[^>]+id="(\d+)"/g)) maxId=Math.max(maxId,+m[1]);
-
-  // Next rId
   const presRelsKey = relsKey('ppt/presentation.xml');
   const presRelsStr = out[presRelsKey] ? DEC.decode(out[presRelsKey]) : '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>';
   let nextRid = 1;
   for (const m of presRelsStr.matchAll(/Id="rId(\d+)"/g)) nextRid=Math.max(nextRid,+m[1]+1);
-
-  let presXml = presXmlStr, ctXml = DEC.decode(out['[Content_Types].xml']), relsXml = presRelsStr;
+  let presXml=presXmlStr, ctXml=DEC.decode(out['[Content_Types].xml']), relsXml=presRelsStr;
 
   for (const spec of specs) {
-    const n = nextNum++, sid = ++maxId, rid = `rId${nextRid++}`;
-    const slideKey = `ppt/slides/slide${n}.xml`;
-    const slideRKey = `ppt/slides/_rels/slide${n}.xml.rels`;
-    const ltype = TYPE_TO_LAYOUT[spec.type||'bullets'] || 'obj';
-    const lpn = findLayout(analysis, ltype);
-    const lTarget = '../slideLayouts/' + (lpn.split('/').pop());
-
-    out[slideKey]  = ENC2.encode(buildSlideXml(spec));
-    out[slideRKey] = ENC2.encode(buildSlideRels(lTarget));
-
-    presXml = presXml.replace('</p:sldIdLst>',
-      `<p:sldId id="${sid}" r:id="${rid}"/></p:sldIdLst>`);
-    ctXml = ctXml.replace('</Types>',
-      `<Override PartName="/${slideKey}" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/></Types>`);
-    relsXml = relsXml.replace('</Relationships>',
-      `<Relationship Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${n}.xml"/></Relationships>`);
+    const n=nextNum++, sid=++maxId, rid=`rId${nextRid++}`;
+    const slideKey=`ppt/slides/slide${n}.xml`;
+    const slideRKey=`ppt/slides/_rels/slide${n}.xml.rels`;
+    const ltype=TYPE_TO_LAYOUT[spec.type||'bullets']||'obj';
+    const lpn=findLayout(analysis,ltype);
+    const lTarget='../slideLayouts/'+(lpn.split('/').pop());
+    out[slideKey]=ENC2.encode(buildSlideXml(spec));
+    out[slideRKey]=ENC2.encode(buildSlideRels(lTarget));
+    presXml=presXml.replace('</p:sldIdLst>',`<p:sldId id="${sid}" r:id="${rid}"/></p:sldIdLst>`);
+    ctXml=ctXml.replace('</Types>',`<Override PartName="/${slideKey}" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/></Types>`);
+    relsXml=relsXml.replace('</Relationships>',`<Relationship Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${n}.xml"/></Relationships>`);
   }
-
-  out['ppt/presentation.xml'] = ENC2.encode(presXml);
-  out['[Content_Types].xml']  = ENC2.encode(ctXml);
-  out[presRelsKey]            = ENC2.encode(relsXml);
+  out['ppt/presentation.xml']=ENC2.encode(presXml);
+  out['[Content_Types].xml']=ENC2.encode(ctXml);
+  out[presRelsKey]=ENC2.encode(relsXml);
   return buildZip(out);
 }
 
 // ── AI CLIENT ──────────────────────────────────────────────
 async function callAI(message) {
   const a = S.analysis;
+  const storedKey = localStorage.getItem(KEY_LS)||'';
+  const pickerContext = S.pickerSelected.size
+    ? [...S.pickerSelected].join(', ')
+    : null;
   const payload = {
-    action:'chat', message,
+    action:'chat',
+    api_key: storedKey,
+    message,
     messages: S.messages.slice(-12),
     analysis:{
       slideSize:[a.slideWidth,a.slideHeight],
       layouts:a.layouts.map(l=>({name:l.name,type:l.type})),
       theme:a.theme,
       slides:a.slides.map(s=>({index:s.index,title:s.title,layoutFile:s.layoutPartname?.split('/').pop()})),
+      detectedElements: buildElementSummary(a),
+      ...(pickerContext ? {manuallySpecifiedElements: pickerContext} : {}),
     },
     deep_analysis:{
       slideCount:a.slides.length,
       totalCharts:a.slides.reduce((s,sl)=>s+(sl.counts?.charts||0),0),
       totalTables:a.slides.reduce((s,sl)=>s+(sl.counts?.tables||0),0),
       totalImages:a.slides.reduce((s,sl)=>s+(sl.counts?.images||0),0),
+      chartTypes: [...new Set(a.slides.flatMap(sl=>(sl.elements||[]).filter(e=>e.type==='chart').map(e=>e.chartType||'chart')))],
+      shapeTypes: [...new Set(a.slides.flatMap(sl=>(sl.elements||[]).filter(e=>e.type==='shape'&&!e.isPlaceholder).map(e=>e.prst||'rect')))],
     },
     draft_spec: S.draftSpec,
   };
@@ -762,6 +1030,41 @@ async function callAI(message) {
   });
   if (!resp.ok) { const e=await resp.json().catch(()=>({error:'HTTP '+resp.status})); throw new Error(e.error||'AI-Fehler'); }
   return resp.json();
+}
+
+function buildElementSummary(a) {
+  const summary = {};
+  for (const slide of a.slides) {
+    for (const el of (slide.elements||[])) {
+      const key = el.label||el.type;
+      summary[key] = (summary[key]||0)+1;
+    }
+  }
+  return summary;
+}
+
+// ── ADMIN KEY MANAGEMENT ───────────────────────────────────
+function getStoredKey()  { return localStorage.getItem(KEY_LS)||''; }
+function setStoredKey(k) { if(k) localStorage.setItem(KEY_LS,k); else localStorage.removeItem(KEY_LS); }
+
+function renderKeyStatus() {
+  const k = getStoredKey();
+  const chip = document.getElementById('key-status-chip');
+  if (!chip) return;
+  if (k) {
+    chip.innerHTML=`<span class="key-status set"><i class="fa-solid fa-circle-check"></i> API-Key gesetzt</span>`;
+  } else {
+    chip.innerHTML=`<span class="key-status unset"><i class="fa-solid fa-circle-xmark"></i> Kein API-Key</span>`;
+  }
+}
+
+function openAdminModal() {
+  document.getElementById('api-key-input').value = getStoredKey();
+  document.getElementById('admin-modal').classList.add('open');
+}
+
+function closeAdminModal() {
+  document.getElementById('admin-modal').classList.remove('open');
 }
 
 // ── UI HELPERS ──────────────────────────────────────────────
@@ -808,10 +1111,14 @@ function renderRail() {
     if(c.charts) chips.push(`<span class="meta-chip chart"><i class="fa-solid fa-chart-bar"></i> ${c.charts}</span>`);
     if(c.tables) chips.push(`<span class="meta-chip table"><i class="fa-solid fa-table"></i> ${c.tables}</span>`);
     if(c.images) chips.push(`<span class="meta-chip img"><i class="fa-solid fa-image"></i> ${c.images}</span>`);
+    const svg = renderSlideSvg(s, S.analysis);
     return `<div class="slide-thumb${i===S.activeSlide?' active':''}" data-idx="${i}">
-      <div class="slide-thumb-num">Folie ${i+1}</div>
-      <div class="slide-thumb-title">${escHtml(s.title||'(kein Titel)')}</div>
-      ${chips.length?`<div class="slide-thumb-meta">${chips.join('')}</div>`:''}
+      <div class="slide-thumb-preview">${svg}</div>
+      <div class="slide-thumb-info">
+        <div class="slide-thumb-num">Folie ${i+1}</div>
+        <div class="slide-thumb-title">${escHtml(s.title||'(kein Titel)')}</div>
+        ${chips.length?`<div class="slide-thumb-meta">${chips.join('')}</div>`:''}
+      </div>
     </div>`;
   }).join('');
   el.querySelectorAll('.slide-thumb').forEach(e=>{
@@ -831,20 +1138,24 @@ function renderAnalyse() {
   document.getElementById('stat-row').innerHTML=[
     {l:'Folien',v:a.slides.length,i:'fa-file-powerpoint'},
     {l:'Layouts',v:a.layouts.length,i:'fa-layer-group'},
-    {l:'Charts',v:tot.charts,i:'fa-chart-bar'},
+    {l:'Diagramme',v:tot.charts,i:'fa-chart-bar'},
     {l:'Tabellen',v:tot.tables,i:'fa-table'},
     {l:'Bilder',v:tot.images,i:'fa-image'},
+    {l:'Formen',v:tot.shapes,i:'fa-shapes'},
   ].map(({l,v,i})=>`<div class="stat-box"><div class="value">${v}</div><div class="label"><i class="fa-solid ${i}"></i> ${l}</div></div>`).join('');
 
   const slots=['accent1','accent2','accent3','accent4','accent5','accent6','dk1','dk2','lt1','lt2'];
   document.getElementById('color-swatches').innerHTML=slots
     .filter(s=>a.theme.colors[s])
-    .map(s=>`<div class="color-swatch" style="background:#${a.theme.colors[s]}" data-label="${s}" title="${s}: #${a.theme.colors[s]}"></div>`)
+    .map(s=>`<div class="color-swatch" style="background:#${a.theme.colors[s]}" title="${s}: #${a.theme.colors[s]}"></div>`)
     .join('');
 
   document.getElementById('fonts-display').innerHTML=`
     <div class="font-display">${escHtml(a.theme.majorFont)}</div><div class="font-sub">Major (Überschriften)</div>
     <div class="font-display" style="margin-top:.75rem">${escHtml(a.theme.minorFont)}</div><div class="font-sub">Minor (Fließtext)</div>`;
+
+  // Element detection
+  renderElemSection(a);
 
   document.getElementById('layouts-list').innerHTML=a.layouts.map(l=>
     `<div class="layout-item"><span class="layout-type-badge">${escHtml(l.type||'custom')}</span><span>${escHtml(l.name||'(unnamed)')}</span></div>`
@@ -853,9 +1164,9 @@ function renderAnalyse() {
   document.getElementById('slides-tbody').innerHTML=a.slides.map(s=>{
     const c=s.counts||{};
     const chips=[];
-    if(c.shapes) chips.push(`<span class="meta-chip">${c.shapes} Shapes</span>`);
-    if(c.charts) chips.push(`<span class="meta-chip chart">${c.charts} Charts</span>`);
-    if(c.tables) chips.push(`<span class="meta-chip table">${c.tables} Tabellen</span>`);
+    if(c.shapes) chips.push(`<span class="meta-chip">${c.shapes} Formen</span>`);
+    if(c.charts) chips.push(`<span class="meta-chip chart">${c.charts} Diagr.</span>`);
+    if(c.tables) chips.push(`<span class="meta-chip table">${c.tables} Tab.</span>`);
     if(c.images) chips.push(`<span class="meta-chip img">${c.images} Bilder</span>`);
     const ln=a.layouts.find(l=>l.partname===s.layoutPartname)?.name||s.layoutPartname?.split('/').pop()||'—';
     return `<tr>
@@ -865,6 +1176,71 @@ function renderAnalyse() {
       <td><div class="shape-counts">${chips.join('')}</div></td>
     </tr>`;
   }).join('');
+}
+
+function renderElemSection(a) {
+  const container = document.getElementById('elem-section');
+  // Aggregate all detected elements
+  const typeCount = {};
+  for (const slide of a.slides) {
+    for (const el of (slide.elements||[])) {
+      const key = el.label||el.type;
+      if (!typeCount[key]) typeCount[key] = {label:el.label||el.type, type:el.type, chartType:el.chartType, count:0};
+      typeCount[key].count++;
+    }
+  }
+  const detected = Object.values(typeCount).sort((a,b)=>b.count-a.count);
+  const hasNonPlaceholder = detected.some(e=>e.type!=='shape'||!['Titel-Platzhalter','Untertitel','Inhalt-Platzhalter','Objekt-Platzhalter'].includes(e.label));
+
+  if (detected.length > 0) {
+    const cards = detected.map(e=>{
+      let iconClass='fa-shapes', iconCls='shape';
+      if (e.type==='chart') { iconClass=CHART_ICON[e.chartType]||'fa-chart-bar'; iconCls='chart'; }
+      else if (e.type==='table') { iconClass='fa-table'; iconCls='table'; }
+      else if (e.type==='image') { iconClass='fa-image'; iconCls='image'; }
+      else if (e.type==='connector') { iconClass='fa-minus'; iconCls='connector'; }
+      return `<div class="elem-card">
+        <div class="elem-icon ${iconCls}"><i class="fa-solid ${iconClass}"></i></div>
+        <div><div class="elem-label">${escHtml(e.label)}</div><div class="elem-count">${e.count}× erkannt</div></div>
+      </div>`;
+    }).join('');
+    container.innerHTML = `<div class="elem-grid">${cards}</div>`;
+
+    // Show picker below if no non-placeholder elements found at all (all are just layout placeholders)
+    if (!hasNonPlaceholder) {
+      container.innerHTML += renderPickerHtml(true);
+    }
+  } else {
+    container.innerHTML = renderPickerHtml(false);
+  }
+  // Wire picker interactions
+  container.querySelectorAll('.picker-item').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const id=btn.dataset.id;
+      if(S.pickerSelected.has(id)){S.pickerSelected.delete(id);btn.classList.remove('selected');}
+      else{S.pickerSelected.add(id);btn.classList.add('selected');}
+    });
+  });
+}
+
+function renderPickerHtml(supplement) {
+  const title = supplement
+    ? 'Welche weiteren Elemente enthält das Deck? (Optional)'
+    : 'Keine Elemente automatisch erkannt';
+  const notice = supplement
+    ? 'Die Folien enthalten hauptsächlich Layout-Platzhalter. Falls das Deck weitere Elemente hat, wähle sie aus damit die KI den Stil kennt.'
+    : 'Wähle die Elemente, die in deiner PowerPoint vorkommen, damit die KI beim Erstellen neuer Folien den richtigen Stil verwendet.';
+  const groups = ELEM_CATALOG.map(g=>`
+    <div class="picker-group">
+      <h5><i class="fa-solid ${g.icon}"></i> ${g.group}</h5>
+      <div class="picker-items">${g.items.map(it=>
+        `<button class="picker-item${S.pickerSelected.has(it.id)?' selected':''}" data-id="${it.id}">
+          <i class="fa-solid ${it.icon}"></i>${it.label}
+        </button>`
+      ).join('')}</div>
+    </div>`).join('');
+  return `<div class="picker-notice"><strong>${escHtml(title)}</strong>${escHtml(notice)}</div>
+    <div class="picker-groups">${groups}</div>`;
 }
 
 function renderSpec() {
@@ -884,7 +1260,7 @@ function renderSpec() {
 // ── HANDLERS ────────────────────────────────────────────────
 async function handleFile(file) {
   if (!file?.name.toLowerCase().endsWith('.pptx')){toast('Bitte eine .pptx-Datei hochladen','error');return;}
-  S.file=file; S.filename=file.name; S.messages=[]; S.draftSpec=null;
+  S.file=file; S.filename=file.name; S.messages=[]; S.draftSpec=null; S.pickerSelected=new Set();
   document.getElementById('upload-progress').style.display='block';
   document.getElementById('browse-btn').disabled=true;
   setProgress(10,'Lese Datei…');
@@ -893,14 +1269,14 @@ async function handleFile(file) {
     setProgress(25,'Entpacke ZIP…');
     const entries=await readZip(buf);
     S.entries=entries;
-    setProgress(55,'Analysiere Design…');
+    setProgress(55,'Analysiere Design & Elemente…');
     S.analysis=await analyzePptx(entries);
     setProgress(90,'Fertig!');
     await new Promise(r=>setTimeout(r,250));
     document.getElementById('upload-phase').style.display='none';
     document.getElementById('tool-phase').hidden=false;
     document.getElementById('filename-chip').textContent=file.name;
-    renderRail(); renderAnalyse();
+    renderRail(); renderAnalyse(); renderKeyStatus();
     document.getElementById('chat-messages').innerHTML=
       `<div class="empty-state" id="chat-empty">
         <i class="fa-solid fa-wand-magic-sparkles"></i>
@@ -917,6 +1293,7 @@ async function handleFile(file) {
 async function sendMessage() {
   const inp=document.getElementById('chat-input'), text=inp.value.trim();
   if (!text) return;
+  if (!getStoredKey()) { toast('Bitte zuerst den Gemini API-Schlüssel über das ⚙ einrichten','error'); openAdminModal(); return; }
   S.messages.push({role:'user',content:text});
   addMsg('user',text); inp.value=''; inp.style.height='40px';
   const btn=document.getElementById('send-btn'); btn.disabled=true;
@@ -970,7 +1347,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     document.getElementById('upload-progress').style.display='none';
     document.getElementById('browse-btn').disabled=false;
     fileInput.value='';
-    Object.assign(S,{file:null,analysis:null,entries:null,messages:[],draftSpec:null});
+    Object.assign(S,{file:null,analysis:null,entries:null,messages:[],draftSpec:null,pickerSelected:new Set()});
   });
 
   document.querySelectorAll('.tab-btn').forEach(btn=>{
@@ -993,6 +1370,18 @@ document.addEventListener('DOMContentLoaded',()=>{
     document.getElementById('chat-input').focus();
   });
   document.getElementById('generate-btn').addEventListener('click',generateAndDownload);
+
+  // Admin modal
+  document.getElementById('settings-btn').addEventListener('click',openAdminModal);
+  document.getElementById('modal-cancel-btn').addEventListener('click',closeAdminModal);
+  document.getElementById('admin-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeAdminModal();});
+  document.getElementById('modal-save-btn').addEventListener('click',()=>{
+    const k=document.getElementById('api-key-input').value.trim();
+    setStoredKey(k);
+    renderKeyStatus();
+    closeAdminModal();
+    toast(k?'API-Schlüssel gespeichert':'API-Schlüssel entfernt', k?'success':'');
+  });
 });
 </script>
 </body>

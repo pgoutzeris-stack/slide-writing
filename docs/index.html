@@ -6,6 +6,7 @@
 <title>Slide Writing — ROOTS</title>
 <link rel="stylesheet" href="https://fonts.cdnfonts.com/css/circular-std">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root {
   --brand:       #206efb;
@@ -325,14 +326,37 @@ body{font-family:'Circular Std',system-ui,sans-serif;color:var(--ink);background
 <div class="modal-overlay" id="admin-modal">
   <div class="modal-card">
     <h2><i class="fa-solid fa-key" style="color:var(--brand);margin-right:.5rem"></i>Gemini API-Schlüssel</h2>
-    <p>Trage hier den Google Gemini API-Schlüssel ein. Er wird nur in diesem Browser gespeichert und bei jedem KI-Aufruf an den Server übertragen.</p>
-    <div class="form-group">
-      <label class="form-label" for="api-key-input">API-Schlüssel</label>
-      <input class="form-input" type="password" id="api-key-input" placeholder="AIzaSy…" autocomplete="off">
+
+    <!-- Step 1: Login -->
+    <div id="modal-step-login">
+      <p>Nur Admins können den API-Schlüssel ändern. Bitte mit ROOTS-Konto anmelden.</p>
+      <div class="form-group">
+        <label class="form-label" for="modal-email">E-Mail</label>
+        <input class="form-input" type="email" id="modal-email" placeholder="name@roots-consultants.com" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="modal-password">Passwort</label>
+        <input class="form-input" type="password" id="modal-password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <p id="modal-login-error" style="color:var(--danger);font-size:.82rem;display:none;margin-top:-.5rem"></p>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="modal-cancel-btn">Abbrechen</button>
+        <button class="btn-primary" id="modal-login-btn"><i class="fa-solid fa-arrow-right-to-bracket"></i> Anmelden</button>
+      </div>
     </div>
-    <div class="modal-footer">
-      <button class="btn-secondary" id="modal-cancel-btn">Abbrechen</button>
-      <button class="btn-primary" id="modal-save-btn"><i class="fa-solid fa-floppy-disk"></i> Speichern</button>
+
+    <!-- Step 2: Set key (shown after login) -->
+    <div id="modal-step-key" style="display:none">
+      <p>Angemeldet als <strong id="modal-user-email"></strong>. Der Schlüssel wird sicher in Supabase gespeichert — kein Browser-Storage.</p>
+      <div class="form-group">
+        <label class="form-label" for="api-key-input">Gemini API-Schlüssel</label>
+        <input class="form-input" type="password" id="api-key-input" placeholder="AIzaSy…" autocomplete="off">
+      </div>
+      <p id="modal-save-error" style="color:var(--danger);font-size:.82rem;display:none;margin-top:-.5rem"></p>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="modal-logout-btn"><i class="fa-solid fa-right-from-bracket"></i> Abmelden</button>
+        <button class="btn-primary" id="modal-save-btn"><i class="fa-solid fa-floppy-disk"></i> In Supabase speichern</button>
+      </div>
     </div>
   </div>
 </div>
@@ -341,9 +365,11 @@ body{font-family:'Circular Std',system-ui,sans-serif;color:var(--ink);background
 'use strict';
 
 // ── Config ──────────────────────────────────────────────────
-const SB_FUNC = 'https://csmguwcvzreefluhahyu.supabase.co/functions/v1/slide-writing-ai';
+const SB_URL  = 'https://csmguwcvzreefluhahyu.supabase.co';
+const SB_FUNC = SB_URL + '/functions/v1/slide-writing-ai';
 const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNzbWd1d2N2enJlZWZsdWhhaHl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NjM0ODcsImV4cCI6MjA5MjUzOTQ4N30.Fiafx7XBaQZXUX3bKQIBH7znBHx3B51yL-bftOHsL4Q';
-const KEY_LS  = 'sw_gemini_key';
+
+const sbClient = window.supabase.createClient(SB_URL, SB_KEY);
 
 const NSMAP = {
   p:   'http://schemas.openxmlformats.org/presentationml/2006/main',
@@ -996,13 +1022,11 @@ async function generatePptx(entries, specs, analysis) {
 // ── AI CLIENT ──────────────────────────────────────────────
 async function callAI(message) {
   const a = S.analysis;
-  const storedKey = localStorage.getItem(KEY_LS)||'';
   const pickerContext = S.pickerSelected.size
     ? [...S.pickerSelected].join(', ')
     : null;
   const payload = {
     action:'chat',
-    api_key: storedKey,
     message,
     messages: S.messages.slice(-12),
     analysis:{
@@ -1043,28 +1067,103 @@ function buildElementSummary(a) {
   return summary;
 }
 
-// ── ADMIN KEY MANAGEMENT ───────────────────────────────────
-function getStoredKey()  { return localStorage.getItem(KEY_LS)||''; }
-function setStoredKey(k) { if(k) localStorage.setItem(KEY_LS,k); else localStorage.removeItem(KEY_LS); }
+// ── ADMIN KEY MANAGEMENT (Supabase-backed) ────────────────
+let _adminSession = null; // holds supabase session after login
 
-function renderKeyStatus() {
-  const k = getStoredKey();
+async function renderKeyStatus() {
   const chip = document.getElementById('key-status-chip');
   if (!chip) return;
-  if (k) {
-    chip.innerHTML=`<span class="key-status set"><i class="fa-solid fa-circle-check"></i> API-Key gesetzt</span>`;
+  // Show set if there's a stored session (proxy for "key was saved before")
+  const { data: { session } } = await sbClient.auth.getSession();
+  _adminSession = session;
+  if (session) {
+    chip.innerHTML=`<span class="key-status set"><i class="fa-solid fa-circle-check"></i> Admin angemeldet</span>`;
   } else {
     chip.innerHTML=`<span class="key-status unset"><i class="fa-solid fa-circle-xmark"></i> Kein API-Key</span>`;
   }
 }
 
-function openAdminModal() {
-  document.getElementById('api-key-input').value = getStoredKey();
+async function openAdminModal() {
+  // Restore session state
+  const { data: { session } } = await sbClient.auth.getSession();
+  _adminSession = session;
+  if (session) {
+    showModalKeyStep(session.user.email);
+  } else {
+    showModalLoginStep();
+  }
   document.getElementById('admin-modal').classList.add('open');
 }
 
 function closeAdminModal() {
   document.getElementById('admin-modal').classList.remove('open');
+}
+
+function showModalLoginStep() {
+  document.getElementById('modal-step-login').style.display='block';
+  document.getElementById('modal-step-key').style.display='none';
+  document.getElementById('modal-login-error').style.display='none';
+  document.getElementById('modal-email').value='';
+  document.getElementById('modal-password').value='';
+}
+
+function showModalKeyStep(email) {
+  document.getElementById('modal-step-login').style.display='none';
+  document.getElementById('modal-step-key').style.display='block';
+  document.getElementById('modal-user-email').textContent = email||'';
+  document.getElementById('modal-save-error').style.display='none';
+  document.getElementById('api-key-input').value='';
+}
+
+async function handleModalLogin() {
+  const email    = document.getElementById('modal-email').value.trim();
+  const password = document.getElementById('modal-password').value;
+  const errEl    = document.getElementById('modal-login-error');
+  const btn      = document.getElementById('modal-login-btn');
+  if (!email || !password) { errEl.textContent='E-Mail und Passwort eingeben.'; errEl.style.display='block'; return; }
+  btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> …';
+  const { data, error } = await sbClient.auth.signInWithPassword({ email, password });
+  btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> Anmelden';
+  if (error) { errEl.textContent = error.message; errEl.style.display='block'; return; }
+  _adminSession = data.session;
+  showModalKeyStep(data.user.email);
+}
+
+async function handleModalSave() {
+  const key   = document.getElementById('api-key-input').value.trim();
+  const errEl = document.getElementById('modal-save-error');
+  const btn   = document.getElementById('modal-save-btn');
+  if (!key) { errEl.textContent='Bitte einen API-Schlüssel eingeben.'; errEl.style.display='block'; return; }
+  if (!_adminSession?.access_token) { errEl.textContent='Sitzung abgelaufen — bitte erneut anmelden.'; errEl.style.display='block'; showModalLoginStep(); return; }
+  btn.disabled=true; btn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Speichert…';
+  try {
+    const resp = await fetch(SB_FUNC, {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'apikey': SB_KEY,
+        'Authorization': 'Bearer '+_adminSession.access_token,
+      },
+      body: JSON.stringify({ action:'set_key', api_key_value: key }),
+    });
+    const result = await resp.json();
+    if (!resp.ok) throw new Error(result.error || 'Fehler '+resp.status);
+    closeAdminModal();
+    toast('API-Schlüssel sicher in Supabase gespeichert', 'success');
+    renderKeyStatus();
+  } catch(e) {
+    errEl.textContent = e.message;
+    errEl.style.display='block';
+  } finally {
+    btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-floppy-disk"></i> In Supabase speichern';
+  }
+}
+
+async function handleModalLogout() {
+  await sbClient.auth.signOut();
+  _adminSession = null;
+  showModalLoginStep();
+  renderKeyStatus();
 }
 
 // ── UI HELPERS ──────────────────────────────────────────────
@@ -1276,7 +1375,7 @@ async function handleFile(file) {
     document.getElementById('upload-phase').style.display='none';
     document.getElementById('tool-phase').hidden=false;
     document.getElementById('filename-chip').textContent=file.name;
-    renderRail(); renderAnalyse(); renderKeyStatus();
+    renderRail(); renderAnalyse(); await renderKeyStatus();
     document.getElementById('chat-messages').innerHTML=
       `<div class="empty-state" id="chat-empty">
         <i class="fa-solid fa-wand-magic-sparkles"></i>
@@ -1293,7 +1392,6 @@ async function handleFile(file) {
 async function sendMessage() {
   const inp=document.getElementById('chat-input'), text=inp.value.trim();
   if (!text) return;
-  if (!getStoredKey()) { toast('Bitte zuerst den Gemini API-Schlüssel über das ⚙ einrichten','error'); openAdminModal(); return; }
   S.messages.push({role:'user',content:text});
   addMsg('user',text); inp.value=''; inp.style.height='40px';
   const btn=document.getElementById('send-btn'); btn.disabled=true;
@@ -1372,16 +1470,13 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('generate-btn').addEventListener('click',generateAndDownload);
 
   // Admin modal
-  document.getElementById('settings-btn').addEventListener('click',openAdminModal);
-  document.getElementById('modal-cancel-btn').addEventListener('click',closeAdminModal);
-  document.getElementById('admin-modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeAdminModal();});
-  document.getElementById('modal-save-btn').addEventListener('click',()=>{
-    const k=document.getElementById('api-key-input').value.trim();
-    setStoredKey(k);
-    renderKeyStatus();
-    closeAdminModal();
-    toast(k?'API-Schlüssel gespeichert':'API-Schlüssel entfernt', k?'success':'');
-  });
+  document.getElementById('settings-btn').addEventListener('click', openAdminModal);
+  document.getElementById('modal-cancel-btn').addEventListener('click', closeAdminModal);
+  document.getElementById('admin-modal').addEventListener('click', e=>{if(e.target===e.currentTarget)closeAdminModal();});
+  document.getElementById('modal-login-btn').addEventListener('click', handleModalLogin);
+  document.getElementById('modal-password').addEventListener('keydown', e=>{if(e.key==='Enter')handleModalLogin();});
+  document.getElementById('modal-save-btn').addEventListener('click', handleModalSave);
+  document.getElementById('modal-logout-btn').addEventListener('click', handleModalLogout);
 });
 </script>
 </body>

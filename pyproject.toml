@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deckforge"
+version = "1.0.0"
+description = "Zero-dependency PowerPoint parser and generator for consulting decks"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Proprietary" }
+authors = [
+  { name = "Pano Goutzeris" }
+]
+dependencies = []
+keywords = ["powerpoint", "pptx", "ooxml", "consulting", "automation"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Office/Business :: Office Suites",
+  "Topic :: Software Development :: Libraries :: Python Modules"
+]
+
+[project.scripts]
+deckforge = "deckforge.cli:main"
+
+[tool.setuptools]
+packages = ["deckforge"]

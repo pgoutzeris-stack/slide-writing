@@ -1,0 +1,172 @@
+{
+  "accent": "206EFB",
+  "title": "DeckForge Consulting Demo",
+  "author": "ROOTS Brand Strategy Consultants GmbH",
+  "slides": [
+    {
+      "type": "title",
+      "title": "Market Automation Strategy",
+      "subtitle": "Generated from JSON with a self-built PPTX engine"
+    },
+    {
+      "type": "agenda",
+      "title": "Agenda",
+      "active": 1,
+      "items": [
+        "Executive summary",
+        "Market evidence",
+        "Operating model",
+        "Roadmap"
+      ]
+    },
+    {
+      "type": "bullets",
+      "title": "Executive summary",
+      "bullets": [
+        "Template design is parsed from the PPTX package.",
+        {
+          "text": "New slides reuse the original master layouts.",
+          "level": 1
+        },
+        "Consulting components are native editable PowerPoint shapes."
+      ],
+      "callout": {
+        "kind": "key",
+        "text": "The output remains a real .pptx file, not a raster export."
+      }
+    },
+    {
+      "type": "kpi",
+      "title": "KPI snapshot",
+      "kpis": [
+        {
+          "value": "42%",
+          "label": "manual effort removed",
+          "delta": "+18pp"
+        },
+        {
+          "value": "0",
+          "label": "runtime dependencies",
+          "delta": null
+        },
+        {
+          "value": "<1s",
+          "label": "demo deck build time",
+          "delta": "+fast"
+        }
+      ]
+    },
+    {
+      "type": "waterfall",
+      "title": "Efficiency bridge",
+      "total_label": "Target",
+      "items": [
+        {
+          "label": "Today",
+          "value": 100
+        },
+        {
+          "label": "Template parsing",
+          "value": -25
+        },
+        {
+          "label": "Spec rendering",
+          "value": -20
+        },
+        {
+          "label": "Component reuse",
+          "value": -15
+        }
+      ]
+    },
+    {
+      "type": "timeline",
+      "title": "Automation roadmap",
+      "phases": [
+        {
+          "label": "Parse",
+          "sub": "Template model",
+          "active": true
+        },
+        {
+          "label": "Compose",
+          "sub": "Slide spec"
+        },
+        {
+          "label": "Generate",
+          "sub": "PPTX package"
+        },
+        {
+          "label": "Scale",
+          "sub": "Content pipeline"
+        }
+      ]
+    },
+    {
+      "type": "comparison",
+      "title": "Option assessment",
+      "options": [
+        "Manual build",
+        "Generic library",
+        "DeckForge"
+      ],
+      "criteria": [
+        "Design fidelity",
+        "Automation depth",
+        "Control"
+      ],
+      "cells": [
+        [
+          0.5,
+          0.75,
+          1
+        ],
+        [
+          0.25,
+          0.5,
+          1
+        ],
+        [
+          0.25,
+          0.5,
+          1
+        ]
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Implementation backlog",
+      "columns": [
+        {
+          "label": "Module",
+          "width": 1.2
+        },
+        {
+          "label": "Scope",
+          "width": 2.0
+        },
+        {
+          "label": "Status",
+          "align": "ctr"
+        }
+      ],
+      "rows": [
+        [
+          "Parser",
+          "Theme, masters, layouts, slides",
+          "Done"
+        ],
+        [
+          "Builder",
+          "Shapes, text, tables, images",
+          "Done"
+        ],
+        [
+          "Spec",
+          "Declarative consulting deck rendering",
+          "Done"
+        ]
+      ]
+    }
+  ]
+}

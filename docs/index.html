@@ -194,6 +194,37 @@ body{font-family:'Circular Std',system-ui,sans-serif;color:var(--ink);background
 @keyframes slideUp{from{transform:translateY(10px);opacity:0}to{transform:translateY(0);opacity:1}}
 .toast.success{background:#15803d}.toast.error{background:var(--danger)}
 ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+
+/* Slide View Layout */
+.slide-view-layout{display:flex;gap:1.25rem;margin-bottom:1.5rem;min-height:0}
+.slide-main-preview{flex:1;min-width:0;display:flex;flex-direction:column;gap:.6rem}
+.slide-preview-stage{width:100%;aspect-ratio:16/9;background:var(--bg-surface);border-radius:var(--radius);border:1px solid var(--line);overflow:hidden;box-shadow:var(--shadow)}
+.slide-preview-stage svg{width:100%;height:100%;display:block}
+.slide-preview-nav{display:flex;align-items:center;justify-content:center;gap:.75rem}
+.slide-preview-nav .nav-label{font-size:.8rem;color:var(--muted);font-weight:600;min-width:90px;text-align:center}
+.nav-btn{width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.75rem;transition:all .2s ease}
+.nav-btn:hover{border-color:var(--brand);color:var(--brand)}
+.nav-btn:disabled{opacity:.35;cursor:not-allowed}
+.slide-stats-panel{width:230px;flex-shrink:0;display:flex;flex-direction:column;gap:.6rem}
+.stats-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:.9rem 1rem;box-shadow:var(--shadow-sm)}
+.stats-card-title{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.6rem}
+.stat-row-item{display:flex;align-items:center;justify-content:space-between;padding:.22rem 0;font-size:.8rem;border-bottom:1px solid var(--bg-surface)}
+.stat-row-item:last-child{border-bottom:none}
+.stat-row-item .lbl{color:var(--muted);display:flex;align-items:center;gap:.4rem}
+.stat-row-item .val{font-weight:700;color:var(--ink)}
+.stat-row-item .val.zero{color:var(--line)}
+.elem-list{display:flex;flex-direction:column;gap:.25rem}
+.elem-badge{display:flex;align-items:center;gap:.5rem;padding:.28rem .5rem;border-radius:6px;font-size:.75rem;background:var(--bg-surface);border:1px solid var(--line)}
+.elem-badge i{font-size:.7rem;width:14px;text-align:center}
+.elem-badge .ename{flex:1;color:var(--ink);font-weight:500}
+.elem-badge .ecnt{font-weight:700;color:var(--muted);font-size:.7rem}
+.elem-badge.chart{background:#f5f3ff;border-color:#ddd6fe}.elem-badge.chart i,.elem-badge.chart .ecnt{color:#7c3aed}
+.elem-badge.table{background:#e0f2fe;border-color:#bae6fd}.elem-badge.table i,.elem-badge.table .ecnt{color:#0369a1}
+.elem-badge.image{background:#f0fdfa;border-color:#99f6e4}.elem-badge.image i,.elem-badge.image .ecnt{color:#0f766e}
+.deck-total-grid{display:grid;grid-template-columns:1fr 1fr;gap:.4rem;margin-bottom:.1rem}
+.deck-total-box{background:var(--bg-surface);border-radius:8px;padding:.5rem .6rem;text-align:center}
+.deck-total-box .dv{font-size:1.2rem;font-weight:700;color:var(--brand);line-height:1}
+.deck-total-box .dl{font-size:.62rem;color:var(--muted);margin-top:.15rem}
 </style>
 </head>
 <body>
@@ -252,7 +283,30 @@ body{font-family:'Circular Std',system-ui,sans-serif;color:var(--ink);background
       <div class="tab-content">
         <!-- ANALYSE TAB -->
         <div class="tab-panel active" id="tab-analyse">
-          <div class="stat-row" id="stat-row"></div>
+
+          <!-- Slide preview + stats sidebar -->
+          <div class="slide-view-layout">
+            <div class="slide-main-preview">
+              <div class="slide-preview-stage" id="slide-preview-main"></div>
+              <div class="slide-preview-nav">
+                <button class="nav-btn" id="prev-slide-btn" disabled><i class="fa-solid fa-chevron-left"></i></button>
+                <span class="nav-label" id="slide-nav-label">Folie 1</span>
+                <button class="nav-btn" id="next-slide-btn"><i class="fa-solid fa-chevron-right"></i></button>
+              </div>
+            </div>
+            <div class="slide-stats-panel">
+              <div class="stats-card" id="slide-elem-card">
+                <div class="stats-card-title">Diese Folie</div>
+                <div id="slide-elem-list"></div>
+              </div>
+              <div class="stats-card">
+                <div class="stats-card-title">Gesamt im Deck</div>
+                <div class="deck-total-grid" id="deck-total-grid"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Design tokens -->
           <div class="design-grid">
             <div class="design-card">
               <h4>Farbpalette</h4>
@@ -264,7 +318,7 @@ body{font-family:'Circular Std',system-ui,sans-serif;color:var(--ink);background
             </div>
           </div>
 
-          <div class="section-title">Erkannte Elemente</div>
+          <div class="section-title">Erkannte Elemente (Deck)</div>
           <div id="elem-section"></div>
 
           <div class="section-title">Layouts im Template</div>
@@ -635,105 +689,332 @@ function getShapeBox(el) {
   };
 }
 
-function analyzeSlideShapes(doc, sRels, entries) {
-  const tree = xq1(doc,'p','spTree');
-  if (!tree) return {shapes:0,images:0,tables:0,charts:0,connectors:0,elements:[],shapeItems:[]};
-  let shapes=0,images=0,tables=0,charts=0,connectors=0;
-  const elements=[], shapeItems=[];
+function analyzeShapeNode(node, sRels, entries, acc) {
+  const ln = node.localName;
+  const box = getShapeBox(node);
 
-  for (const ch of tree.children) {
-    const ln = ch.localName;
-    const box = getShapeBox(ch);
+  if (ln==='sp') {
+    acc.shapes++;
+    const ph = node.getElementsByTagNameNS(NSMAP.p,'ph')[0];
+    const phType = ph?.getAttribute('type')||'';
+    const prstGeom = node.getElementsByTagNameNS(NSMAP.a,'prstGeom')[0];
+    const prst = prstGeom?.getAttribute('prst')||'rect';
+    const isPlaceholder = !!ph;
+    const label = phType ? (PH_LABELS[phType]||'Platzhalter') : (PRST_LABELS[prst]||'Form');
+    acc.elements.push({type:'shape', label, prst, phType, isPlaceholder});
+    if (box) acc.shapeItems.push({...box, shapeType: phType||prst, isPlaceholder});
 
-    if (ln==='sp') {
-      shapes++;
-      const ph = ch.getElementsByTagNameNS(NSMAP.p,'ph')[0];
-      const phType = ph?.getAttribute('type')||'';
-      const prstGeom = ch.getElementsByTagNameNS(NSMAP.a,'prstGeom')[0];
-      const prst = prstGeom?.getAttribute('prst')||'rect';
-      const isPlaceholder = !!ph;
-      const label = phType ? (PH_LABELS[phType]||'Platzhalter') : (PRST_LABELS[prst]||'Form');
-      elements.push({type:'shape', label, prst, phType, isPlaceholder});
-      if (box) shapeItems.push({...box, shapeType: phType||prst, isPlaceholder});
-    } else if (ln==='pic') {
-      images++;
-      elements.push({type:'image', label:'Bild'});
-      if (box) shapeItems.push({...box, shapeType:'image'});
-    } else if (ln==='graphicFrame') {
-      const gd = ch.getElementsByTagNameNS(NSMAP.a,'graphicData')[0];
-      const uri = gd?.getAttribute('uri')||'';
-      if (uri===CHART_URI) {
-        charts++;
-        let chartType = 'chart';
-        try {
-          // Find chart rId from c:chart element
-          const ns = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
-          const cEl = gd.getElementsByTagNameNS(ns,'chart')[0];
-          const rId = cEl?.getAttributeNS(NSMAP.r,'id') || cEl?.getAttribute('r:id');
-          if (rId && sRels && sRels[rId]) {
-            const chartPn = rId && sRels[rId] ? resolveTgt('ppt/slides/slide1.xml', '../'+sRels[rId].target) : null;
-            // Find chart part in entries
-            const chartKey = chartPn ? Object.keys(entries||{}).find(k=>k.endsWith(sRels[rId].target.split('/').pop())) : null;
-            if (chartKey) chartType = detectChartType(entries[chartKey]);
-          }
-        } catch {/* ignore */}
-        elements.push({type:'chart', label: CHART_TYPE_LABELS[chartType]||'Diagramm', chartType});
-        if (box) shapeItems.push({...box, shapeType:'chart', chartType});
-      } else if (uri===TABLE_URI) {
-        tables++;
-        elements.push({type:'table', label:'Tabelle'});
-        if (box) shapeItems.push({...box, shapeType:'table'});
-      } else {
-        shapes++;
-        if (box) shapeItems.push({...box, shapeType:'other'});
-      }
-    } else if (ln==='cxnSp') {
-      connectors++;
-      elements.push({type:'connector', label:'Verbinder / Linie'});
-    } else if (ln==='grpSp') {
-      shapes++;
-      elements.push({type:'group', label:'Gruppe'});
-      if (box) shapeItems.push({...box, shapeType:'group'});
+  } else if (ln==='pic') {
+    acc.images++;
+    acc.elements.push({type:'image', label:'Bild'});
+    if (box) acc.shapeItems.push({...box, shapeType:'image'});
+
+  } else if (ln==='graphicFrame') {
+    const gd = node.getElementsByTagNameNS(NSMAP.a,'graphicData')[0];
+    const uri = gd?.getAttribute('uri')||'';
+
+    if (uri===CHART_URI) {
+      // Strict: verify the rId points to an actual chart relationship
+      const cEl = gd.getElementsByTagNameNS(CHART_URI,'chart')[0];
+      const rId = cEl?.getAttributeNS(NSMAP.r,'id') || cEl?.getAttribute('r:id') || '';
+      const rel = rId && sRels ? sRels[rId] : null;
+      if (!rel) return; // no valid chart relationship → skip
+      acc.charts++;
+      let chartType = 'chart';
+      try {
+        const chartKey = Object.keys(entries||{}).find(k=>k.endsWith(rel.target.split('/').pop()));
+        if (chartKey) chartType = detectChartType(entries[chartKey]);
+      } catch {/* ignore */}
+      acc.elements.push({type:'chart', label: CHART_TYPE_LABELS[chartType]||'Diagramm', chartType});
+      if (box) acc.shapeItems.push({...box, shapeType:'chart', chartType});
+
+    } else if (uri===TABLE_URI) {
+      // Strict: must have an actual a:tbl with at least one row
+      const tblEl = gd?.getElementsByTagNameNS(NSMAP.a,'tbl')[0];
+      const hasRows = tblEl && tblEl.getElementsByTagNameNS(NSMAP.a,'tr').length > 0;
+      if (!hasRows) return; // URI set but no real table content → skip
+      acc.tables++;
+      acc.elements.push({type:'table', label:'Tabelle'});
+      if (box) acc.shapeItems.push({...box, shapeType:'table'});
+
+    } else {
+      // Other graphic (SmartArt, diagram, etc.)
+      acc.shapes++;
+      if (box) acc.shapeItems.push({...box, shapeType:'other'});
     }
+
+  } else if (ln==='cxnSp') {
+    acc.connectors++;
+    acc.elements.push({type:'connector', label:'Verbinder / Linie'});
+
+  } else if (ln==='grpSp') {
+    // Recurse into group — don't count the group itself as a shape
+    for (const ch of node.children) analyzeShapeNode(ch, sRels, entries, acc);
   }
-  return {shapes,images,tables,charts,connectors,elements,shapeItems};
 }
 
-// ── SLIDE SVG PREVIEW ──────────────────────────────────────
+function analyzeSlideShapes(doc, sRels, entries) {
+  const tree = xq1(doc,'p','spTree');
+  const acc = {shapes:0,images:0,tables:0,charts:0,connectors:0,elements:[],shapeItems:[]};
+  if (!tree) return acc;
+  for (const ch of tree.children) analyzeShapeNode(ch, sRels, entries, acc);
+  return acc;
+}
+
+// ── DRAWINGML COLOR ENGINE ─────────────────────────────────
+const SCHEME_SLOT = {tx1:'dk1',tx2:'dk2',bg1:'lt1',bg2:'lt2',phClr:'dk1'};
+const PRST_CLR = {black:'000000',white:'FFFFFF',red:'FF0000',darkRed:'8B0000',
+  green:'008000',darkGreen:'006400',blue:'0000FF',darkBlue:'00008B',
+  yellow:'FFFF00',cyan:'00FFFF',magenta:'FF00FF',orange:'FFA500',
+  gray:'808080',darkGray:'404040',lightGray:'D3D3D3',brown:'A52A2A'};
+
+function _h2hsl(hex) {
+  let r=parseInt(hex.slice(0,2),16)/255, g=parseInt(hex.slice(2,4),16)/255, b=parseInt(hex.slice(4,6),16)/255;
+  const mx=Math.max(r,g,b), mn=Math.min(r,g,b); let h=0,s=0,l=(mx+mn)/2;
+  if (mx!==mn){const d=mx-mn;s=l>.5?d/(2-mx-mn):d/(mx+mn);
+    if(mx===r)h=((g-b)/d+(g<b?6:0))/6;else if(mx===g)h=((b-r)/d+2)/6;else h=((r-g)/d+4)/6;}
+  return {h,s,l};
+}
+function _hsl2hex(h,s,l){
+  function hq(p,q,t){if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;}
+  let r,g,b;
+  if(s===0){r=g=b=l;}else{const q=l<.5?l*(1+s):l+s-l*s,p=2*l-q;r=hq(p,q,h+1/3);g=hq(p,q,h);b=hq(p,q,h-1/3);}
+  return[r,g,b].map(x=>Math.round(x*255).toString(16).padStart(2,'0')).join('').toUpperCase();
+}
+function applyMods(hex, el) {
+  const m={};
+  for(const c of el.children){const v=c.getAttribute('val');if(v!=null)m[c.localName]=+v/100000;}
+  if(!Object.keys(m).length)return hex;
+  let{h,s,l}=_h2hsl(hex);
+  if(m.lumMod!=null)l*=m.lumMod; if(m.lumOff!=null)l+=m.lumOff;
+  if(m.shade!=null)l*=m.shade;   if(m.tint!=null)l=l+(1-l)*m.tint;
+  if(m.satMod!=null)s*=m.satMod;
+  return _hsl2hex(h, Math.max(0,Math.min(1,s)), Math.max(0,Math.min(1,l)));
+}
+function resolveClr(containerEl, TC) {
+  if(!containerEl)return null;
+  const a=NSMAP.a;
+  const srgb=containerEl.getElementsByTagNameNS(a,'srgbClr')[0];
+  if(srgb)return'#'+applyMods(srgb.getAttribute('val')||'CCCCCC',srgb);
+  const sc=containerEl.getElementsByTagNameNS(a,'schemeClr')[0];
+  if(sc){const slot=sc.getAttribute('val')||'dk1';const key=SCHEME_SLOT[slot]||slot;const hex=TC[key]||'CCCCCC';return'#'+applyMods(hex,sc);}
+  const sys=containerEl.getElementsByTagNameNS(a,'sysClr')[0];
+  if(sys){const lc=sys.getAttribute('lastClr');return lc?'#'+lc:'#FFFFFF';}
+  const pc=containerEl.getElementsByTagNameNS(a,'prstClr')[0];
+  if(pc)return'#'+(PRST_CLR[pc.getAttribute('val')||'black']||'000000');
+  return null;
+}
+function resolveFill(spPr, TC, fallback) {
+  if(!spPr)return fallback;
+  const a=NSMAP.a;
+  if(spPr.getElementsByTagNameNS(a,'noFill')[0])return'none';
+  const sf=spPr.getElementsByTagNameNS(a,'solidFill')[0];
+  if(sf){const c=resolveClr(sf,TC);if(c)return c;}
+  const gf=spPr.getElementsByTagNameNS(a,'gradFill')[0];
+  if(gf){const gs=gf.getElementsByTagNameNS(a,'gs')[0];if(gs){const c=resolveClr(gs,TC);if(c)return c;}}
+  return fallback;
+}
+
+// ── DRAWINGML → SVG RENDERER ───────────────────────────────
+function svgBox(el,sx,sy){
+  const xfrm=el.getElementsByTagNameNS(NSMAP.a,'xfrm')[0];
+  if(!xfrm)return null;
+  const off=xfrm.getElementsByTagNameNS(NSMAP.a,'off')[0];
+  const ext=xfrm.getElementsByTagNameNS(NSMAP.a,'ext')[0];
+  if(!off||!ext)return null;
+  return{x:(+off.getAttribute('x')||0)*sx, y:(+off.getAttribute('y')||0)*sy,
+    w:Math.max((+ext.getAttribute('cx')||0)*sx,1), h:Math.max((+ext.getAttribute('cy')||0)*sy,1),
+    rot:+(xfrm.getAttribute('rot')||0)/60000};
+}
+function getTextLines(txBody,max){
+  const lines=[];
+  for(const p of txBody.getElementsByTagNameNS(NSMAP.a,'p')){
+    const t=[...p.getElementsByTagNameNS(NSMAP.a,'t')].map(e=>e.textContent||'').join('');
+    if(t.trim())lines.push(t.trim());
+    if(lines.length>=max)break;
+  }
+  return lines;
+}
+function getFontPx(txBody,defaultPt){
+  const rPr=txBody&&txBody.getElementsByTagNameNS(NSMAP.a,'rPr')[0];
+  const sz=rPr&&rPr.getAttribute('sz');
+  return Math.max(6,Math.min(60,sz?+sz/100*1.333:defaultPt*1.333));
+}
+function svgText(lines,x,y,w,h,px,fill){
+  const lh=px*1.35, total=lines.length*lh;
+  let sy=y+(h-total)/2+px*0.85;
+  let out='';
+  for(const line of lines){
+    if(sy>y+h+2)break;
+    const maxCh=Math.max(1,Math.floor(w/(px*0.52)));
+    const t=(line.length>maxCh?line.slice(0,maxCh-1)+'…':line).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    out+=`<text x="${(x+w/2).toFixed(1)}" y="${sy.toFixed(1)}" text-anchor="middle" font-size="${px.toFixed(1)}" fill="${fill}" font-family="system-ui,sans-serif">${t}</text>`;
+    sy+=lh;
+  }
+  return out;
+}
+function renderSpSvg(el,sx,sy,TC){
+  const b=svgBox(el,sx,sy); if(!b)return'';
+  const{x,y,w,h,rot}=b;
+  const spPr=el.getElementsByTagNameNS(NSMAP.p,'spPr')[0]||el.getElementsByTagNameNS(NSMAP.a,'spPr')[0];
+  const prstGeom=el.getElementsByTagNameNS(NSMAP.a,'prstGeom')[0];
+  const prst=prstGeom?.getAttribute('prst')||'rect';
+  const ph=el.getElementsByTagNameNS(NSMAP.p,'ph')[0];
+  const phType=ph?.getAttribute('type')||'';
+  const txBody=el.getElementsByTagNameNS(NSMAP.p,'txBody')[0];
+  const isConnector=['line','straightConnector1','bentConnector2','bentConnector3','bentConnector4','bentConnector5','curvedConnector2','curvedConnector3'].includes(prst);
+  if(isConnector){
+    const stroke=resolveClr(spPr?.getElementsByTagNameNS(NSMAP.a,'solidFill')[0],TC)||'#94a3b8';
+    return`<line x1="${x.toFixed(1)}" y1="${(y+h/2).toFixed(1)}" x2="${(x+w).toFixed(1)}" y2="${(y+h/2).toFixed(1)}" stroke="${stroke}" stroke-width="1"/>`;
+  }
+  const fallbackFill=phType?'none':'rgba(200,200,200,0.25)';
+  const fill=resolveFill(spPr,TC,fallbackFill);
+  const strokeEl=spPr?.getElementsByTagNameNS(NSMAP.a,'ln')[0];
+  const strokeFill=strokeEl?.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
+  let stroke='none'; if(strokeFill){const c=resolveClr(strokeFill,TC);if(c)stroke=c;}
+  const sw=strokeEl?Math.max(0.5,(+(strokeEl.getAttribute('w')||0))/12700):0;
+  const TR=rot?`transform="rotate(${rot.toFixed(2)} ${(x+w/2).toFixed(1)} ${(y+h/2).toFixed(1)})"`:''
+  let shape='';
+  if(prst==='ellipse'||prst==='oval'){
+    shape=`<ellipse cx="${(x+w/2).toFixed(1)}" cy="${(y+h/2).toFixed(1)}" rx="${(w/2).toFixed(1)}" ry="${(h/2).toFixed(1)}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" ${TR}/>`;
+  }else if(prst==='roundRect'){
+    const rx=Math.min(8,w*0.08,h*0.08);
+    shape=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="${rx.toFixed(1)}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" ${TR}/>`;
+  }else if(prst==='triangle'){
+    const pts=`${(x+w/2).toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${(y+h).toFixed(1)}`;
+    shape=`<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" ${TR}/>`;
+  }else if(prst==='rtTriangle'){
+    const pts=`${x.toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${(y+h).toFixed(1)}`;
+    shape=`<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" ${TR}/>`;
+  }else if(prst==='diamond'){
+    const pts=`${(x+w/2).toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${(y+h/2).toFixed(1)} ${(x+w/2).toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${(y+h/2).toFixed(1)}`;
+    shape=`<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" ${TR}/>`;
+  }else if(prst==='hexagon'){
+    const q=w/4;
+    const pts=`${(x+q).toFixed(1)},${y.toFixed(1)} ${(x+w-q).toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${(y+h/2).toFixed(1)} ${(x+w-q).toFixed(1)},${(y+h).toFixed(1)} ${(x+q).toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${(y+h/2).toFixed(1)}`;
+    shape=`<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" ${TR}/>`;
+  }else if(prst==='chevron'){
+    const d=Math.min(w*0.2,h/2);
+    const pts=`${x.toFixed(1)},${y.toFixed(1)} ${(x+w-d).toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${(y+h/2).toFixed(1)} ${(x+w-d).toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${(y+h).toFixed(1)} ${(x+d).toFixed(1)},${(y+h/2).toFixed(1)}`;
+    shape=`<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" ${TR}/>`;
+  }else if(prst==='rightArrow'||prst==='arrow'){
+    const ah=h*0.4,ay=(h-ah)/2,d=Math.min(w*0.35,h);
+    const pts=`${x.toFixed(1)},${(y+ay).toFixed(1)} ${(x+w-d).toFixed(1)},${(y+ay).toFixed(1)} ${(x+w-d).toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${(y+h/2).toFixed(1)} ${(x+w-d).toFixed(1)},${(y+h).toFixed(1)} ${(x+w-d).toFixed(1)},${(y+h-ay).toFixed(1)} ${x.toFixed(1)},${(y+h-ay).toFixed(1)}`;
+    shape=`<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" ${TR}/>`;
+  }else{
+    shape=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" ${TR}/>`;
+  }
+  let txt='';
+  if(txBody&&fill!=='none'){
+    const lines=getTextLines(txBody,8);
+    if(lines.length){
+      const px=getFontPx(txBody,phType==='ctrTitle'||phType==='title'?18:12);
+      const tc=TC.dk1?'#'+TC.dk1:'#0f172a';
+      const clipId=`c${Math.abs(Math.round(x*10+y*7))}`;
+      txt=`<clipPath id="${clipId}"><rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}"/></clipPath><g clip-path="url(#${clipId})">${svgText(lines,x,y,w,h,px,tc)}</g>`;
+    }
+  }
+  return shape+txt;
+}
+function renderPicSvg(el,sx,sy){
+  const b=svgBox(el,sx,sy);if(!b)return'';
+  const{x,y,w,h}=b;
+  return`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="#e2f3ef" rx="2"/><text x="${(x+w/2).toFixed(1)}" y="${(y+h/2).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(8,Math.min(18,h*.4)).toFixed(1)}" fill="#0f766e" font-family="system-ui">🖼</text>`;
+}
+function renderTableSvg(tbl,box,TC){
+  const{x,y,w,h}=box;
+  const rows=[...tbl.getElementsByTagNameNS(NSMAP.a,'tr')];
+  if(!rows.length)return'';
+  const rh=Math.max(h/rows.length,1);
+  let out=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="none" stroke="#e2e8f0" stroke-width="0.5"/>`;
+  rows.forEach((row,ri)=>{
+    const ry=y+ri*rh;
+    const cells=[...row.getElementsByTagNameNS(NSMAP.a,'tc')];
+    if(!cells.length)return;
+    const cw=w/cells.length;
+    cells.forEach((cell,ci)=>{
+      const cx2=x+ci*cw;
+      const tcPr=cell.getElementsByTagNameNS(NSMAP.a,'tcPr')[0];
+      const sf=tcPr?.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
+      let cf=sf?resolveClr(sf,TC)||'none':'none';
+      if(cf==='none'&&ri===0)cf='#'+((TC.accent1||'206efb'))+'33';
+      else if(cf==='none'&&ri%2===0)cf='#f8fafc';
+      out+=`<rect x="${cx2.toFixed(1)}" y="${ry.toFixed(1)}" width="${cw.toFixed(1)}" height="${rh.toFixed(1)}" fill="${cf}" stroke="#e2e8f0" stroke-width="0.5"/>`;
+      const tb=cell.getElementsByTagNameNS(NSMAP.a,'txBody')[0];
+      if(tb){const ls=getTextLines(tb,1);if(ls[0]){const fs=Math.max(5,Math.min(rh*.55,9));const mc=Math.max(1,Math.floor(cw/(fs*.55)));const t=(ls[0].length>mc?ls[0].slice(0,mc-1)+'…':ls[0]).replace(/&/g,'&amp;').replace(/</g,'&lt;');out+=`<text x="${(cx2+cw/2).toFixed(1)}" y="${(ry+rh/2).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${fs.toFixed(1)}" fill="${ri===0?'#fff':'#0f172a'}" font-family="system-ui">${t}</text>`;}}
+    });
+  });
+  return out;
+}
+function renderGraphicFrameSvg(el,sx,sy,TC){
+  const b=svgBox(el,sx,sy);if(!b)return'';
+  const{x,y,w,h}=b;
+  const gd=el.getElementsByTagNameNS(NSMAP.a,'graphicData')[0];
+  const uri=gd?.getAttribute('uri')||'';
+  if(uri===CHART_URI){
+    const ac='#'+(TC.accent1||'206efb');
+    return`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="${ac}18" rx="3" stroke="${ac}" stroke-width="1" stroke-opacity="0.5"/><text x="${(x+w/2).toFixed(1)}" y="${(y+h/2).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(8,Math.min(16,h*.25)).toFixed(1)}" fill="${ac}" font-family="system-ui">📊</text>`;
+  }
+  if(uri===TABLE_URI){
+    const tbl=gd?.getElementsByTagNameNS(NSMAP.a,'tbl')[0];
+    if(tbl&&tbl.getElementsByTagNameNS(NSMAP.a,'tr').length)return renderTableSvg(tbl,b,TC);
+  }
+  return'';
+}
+function renderNodeSvg(el,sx,sy,TC){
+  const ln=el.localName;
+  if(ln==='sp')return renderSpSvg(el,sx,sy,TC);
+  if(ln==='pic')return renderPicSvg(el,sx,sy);
+  if(ln==='graphicFrame')return renderGraphicFrameSvg(el,sx,sy,TC);
+  if(ln==='cxnSp'){
+    const b=svgBox(el,sx,sy);if(!b)return'';
+    const{x,y,w,h}=b;
+    return`<line x1="${x.toFixed(1)}" y1="${(y+h/2).toFixed(1)}" x2="${(x+w).toFixed(1)}" y2="${(y+h/2).toFixed(1)}" stroke="#94a3b8" stroke-width="0.8"/>`;
+  }
+  if(ln==='grpSp'){let out='';for(const ch of el.children)out+=renderNodeSvg(ch,sx,sy,TC);return out;}
+  return'';
+}
+function renderSlideToSvg(slideIdx, W, H) {
+  W=W||960; H=H||540;
+  const a=S.analysis; if(!a)return'';
+  const slide=a.slides[slideIdx]; if(!slide)return'';
+  const SW=a.slideWidth||12192000, SH=a.slideHeight||6858000;
+  const sx=W/SW, sy=H/SH;
+  const TC=a.theme.colors||{};
+  const bgColor='#'+(TC.lt1||'FFFFFF');
+
+  const slideData=S.entries?.[slide.partname];
+  if(!slideData)return`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="${bgColor}"/></svg>`;
+
+  const doc=parseXml(slideData);
+  let bgFill=bgColor;
+  const bgPr=doc.getElementsByTagNameNS(NSMAP.p,'bgPr')[0];
+  if(bgPr){const sf=bgPr.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];if(sf){const c=resolveClr(sf,TC);if(c)bgFill=c;}}
+
+  const tree=xq1(doc,'p','spTree');
+  let shapes='';
+  if(tree){for(const ch of tree.children)shapes+=renderNodeSvg(ch,sx,sy,TC);}
+
+  return`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="${bgFill}"/>${shapes}</svg>`;
+}
+
+// Small thumbnail version (fast, keeps colored rect fallback for speed)
 function renderSlideSvg(slide, analysis) {
   const W=168, H=94;
-  const SW = analysis.slideWidth||12192000;
-  const SH = analysis.slideHeight||6858000;
+  const SW=analysis.slideWidth||12192000, SH=analysis.slideHeight||6858000;
   const sx=W/SW, sy=H/SH;
-  const bg = '#'+( analysis.theme.colors.lt1||'FFFFFF');
-
-  const FILL = {
-    title:'rgba(15,23,42,.12)', ctrTitle:'rgba(15,23,42,.12)',
-    subTitle:'rgba(15,23,42,.07)', body:'rgba(15,23,42,.06)',
-    obj:'rgba(15,23,42,.06)', chart:'rgba(32,110,251,.15)',
-    table:'rgba(3,105,161,.13)', image:'rgba(15,118,110,.12)',
-    group:'rgba(15,23,42,.06)', other:'rgba(15,23,42,.04)',
-  };
-
+  const TC=analysis.theme.colors||{};
+  const bg='#'+(TC.lt1||'FFFFFF');
+  const FILL={title:'rgba(15,23,42,.12)',ctrTitle:'rgba(15,23,42,.12)',subTitle:'rgba(15,23,42,.07)',body:'rgba(15,23,42,.06)',obj:'rgba(15,23,42,.06)',chart:'rgba(32,110,251,.15)',table:'rgba(3,105,161,.13)',image:'rgba(15,118,110,.12)',group:'rgba(15,23,42,.06)',other:'rgba(15,23,42,.04)'};
   let shapes='';
-  for (const it of slide.shapeItems||[]) {
-    const x=(it.x*sx).toFixed(1), y=(it.y*sy).toFixed(1);
-    const w=Math.max(it.w*sx,2).toFixed(1), h=Math.max(it.h*sy,2).toFixed(1);
-    const f = FILL[it.shapeType]||FILL.other;
-    shapes += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1.5" fill="${f}"/>`;
+  for(const it of slide.shapeItems||[]){
+    const x=(it.x*sx).toFixed(1),y=(it.y*sy).toFixed(1);
+    const w=Math.max(it.w*sx,2).toFixed(1),h=Math.max(it.h*sy,2).toFixed(1);
+    const f=FILL[it.shapeType]||FILL.other;
+    shapes+=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1" fill="${f}"/>`;
   }
-
-  // If no shapeItems, show generic layout placeholder
-  if (!shapes) {
-    shapes = `<rect x="10" y="10" width="${W-20}" height="16" rx="2" fill="rgba(15,23,42,.1)"/>
-              <rect x="10" y="32" width="${W-40}" height="8" rx="2" fill="rgba(15,23,42,.06)"/>
-              <rect x="10" y="44" width="${W-50}" height="8" rx="2" fill="rgba(15,23,42,.06)"/>`;
-  }
-
-  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
-    <rect width="${W}" height="${H}" fill="${bg}" rx="0"/>
-    ${shapes}
-  </svg>`;
+  if(!shapes)shapes=`<rect x="10" y="10" width="${W-20}" height="14" rx="2" fill="rgba(15,23,42,.1)"/><rect x="10" y="30" width="${W-40}" height="7" rx="1" fill="rgba(15,23,42,.06)"/><rect x="10" y="41" width="${W-50}" height="7" rx="1" fill="rgba(15,23,42,.06)"/>`;
+  return`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="${bg}"/>${shapes}</svg>`;
 }
 
 // ── PPTX ANALYZER ──────────────────────────────────────────
@@ -1201,6 +1482,80 @@ function addLoading() {
   box.appendChild(d); box.scrollTop=box.scrollHeight;
 }
 
+// ── SLIDE PREVIEW + STATS ──────────────────────────────────
+function renderMainSlidePreview(idx) {
+  S.activeSlide = idx;
+  const stage = document.getElementById('slide-preview-main');
+  if (!stage) return;
+  stage.innerHTML = renderSlideToSvg(idx);
+  const total = S.analysis?.slides.length || 1;
+  document.getElementById('slide-nav-label').textContent = `Folie ${idx+1} / ${total}`;
+  document.getElementById('prev-slide-btn').disabled = idx === 0;
+  document.getElementById('next-slide-btn').disabled = idx >= total - 1;
+  updateSlideStats(idx);
+  // Sync rail highlight
+  document.querySelectorAll('.slide-thumb').forEach((t,i) => t.classList.toggle('active', i === idx));
+}
+
+function updateSlideStats(idx) {
+  const slide = S.analysis?.slides[idx];
+  const listEl = document.getElementById('slide-elem-list');
+  if (!slide || !listEl) return;
+
+  const c = slide.counts || {};
+  const cardTitle = document.querySelector('#slide-elem-card .stats-card-title');
+  if (cardTitle) cardTitle.textContent = `Folie ${idx+1} — Elemente`;
+
+  // Per-slide stat rows
+  const rows = [
+    {i:'fa-shapes',      l:'Formen',     v:c.shapes||0,    cls:''},
+    {i:'fa-chart-bar',   l:'Diagramme',  v:c.charts||0,    cls:'chart'},
+    {i:'fa-table',       l:'Tabellen',   v:c.tables||0,    cls:'table'},
+    {i:'fa-image',       l:'Bilder',     v:c.images||0,    cls:'image'},
+    {i:'fa-minus',       l:'Verbinder',  v:c.connectors||0,cls:''},
+  ];
+
+  // Detailed element list for this slide
+  const typeMap = {};
+  for (const el of (slide.elements||[])) {
+    const k = el.label||el.type;
+    if (!typeMap[k]) typeMap[k] = {label:k, type:el.type, chartType:el.chartType, count:0};
+    typeMap[k].count++;
+  }
+  const elems = Object.values(typeMap).sort((a,b) => b.count - a.count);
+
+  let html = `<div class="elem-list" style="margin-bottom:.6rem">`;
+  for (const row of rows) {
+    if (!row.v) continue;
+    html += `<div class="elem-badge${row.cls?' '+row.cls:''}">
+      <i class="fa-solid ${row.i}"></i>
+      <span class="ename">${row.l}</span>
+      <span class="ecnt">${row.v}</span>
+    </div>`;
+  }
+  if (!elems.length) html += `<div style="font-size:.78rem;color:var(--muted);padding:.25rem 0">Keine Elemente erkannt</div>`;
+  html += `</div>`;
+
+  // Show element type detail
+  if (elems.length) {
+    html += `<div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:.35rem">Typen</div><div class="elem-list">`;
+    for (const e of elems.slice(0,8)) {
+      let iconCls='fa-shapes', badgeCls='';
+      if(e.type==='chart'){iconCls=CHART_ICON[e.chartType]||'fa-chart-bar';badgeCls='chart';}
+      else if(e.type==='table'){iconCls='fa-table';badgeCls='table';}
+      else if(e.type==='image'){iconCls='fa-image';badgeCls='image';}
+      html += `<div class="elem-badge${badgeCls?' '+badgeCls:''}">
+        <i class="fa-solid ${iconCls}"></i>
+        <span class="ename">${escHtml(e.label)}</span>
+        <span class="ecnt">${e.count}×</span>
+      </div>`;
+    }
+    html += `</div>`;
+  }
+
+  listEl.innerHTML = html;
+}
+
 // ── RENDER ──────────────────────────────────────────────────
 function renderRail() {
   const el=document.getElementById('slide-thumbs');
@@ -1222,26 +1577,28 @@ function renderRail() {
   }).join('');
   el.querySelectorAll('.slide-thumb').forEach(e=>{
     e.addEventListener('click',()=>{
-      S.activeSlide=+e.dataset.idx;
-      el.querySelectorAll('.slide-thumb').forEach(x=>x.classList.remove('active'));
-      e.classList.add('active');
+      renderMainSlidePreview(+e.dataset.idx);
     });
   });
 }
 
 function renderAnalyse() {
   const a=S.analysis;
-  const tot={shapes:0,images:0,tables:0,charts:0};
+  const tot={shapes:0,images:0,tables:0,charts:0,connectors:0};
   for(const s of a.slides) for(const k of Object.keys(tot)) tot[k]+=(s.counts?.[k]||0);
 
-  document.getElementById('stat-row').innerHTML=[
-    {l:'Folien',v:a.slides.length,i:'fa-file-powerpoint'},
-    {l:'Layouts',v:a.layouts.length,i:'fa-layer-group'},
-    {l:'Diagramme',v:tot.charts,i:'fa-chart-bar'},
-    {l:'Tabellen',v:tot.tables,i:'fa-table'},
-    {l:'Bilder',v:tot.images,i:'fa-image'},
-    {l:'Formen',v:tot.shapes,i:'fa-shapes'},
-  ].map(({l,v,i})=>`<div class="stat-box"><div class="value">${v}</div><div class="label"><i class="fa-solid ${i}"></i> ${l}</div></div>`).join('');
+  // Deck totals in stats sidebar
+  document.getElementById('deck-total-grid').innerHTML=[
+    {l:'Folien',v:a.slides.length},
+    {l:'Layouts',v:a.layouts.length},
+    {l:'Diagr.',v:tot.charts},
+    {l:'Tab.',v:tot.tables},
+    {l:'Bilder',v:tot.images},
+    {l:'Formen',v:tot.shapes},
+  ].map(({l,v})=>`<div class="deck-total-box"><div class="dv">${v}</div><div class="dl">${l}</div></div>`).join('');
+
+  // Legacy stat-row (hidden but kept for structure)
+  document.getElementById('stat-row').innerHTML='';
 
   const slots=['accent1','accent2','accent3','accent4','accent5','accent6','dk1','dk2','lt1','lt2'];
   document.getElementById('color-swatches').innerHTML=slots
@@ -1375,7 +1732,9 @@ async function handleFile(file) {
     document.getElementById('upload-phase').style.display='none';
     document.getElementById('tool-phase').hidden=false;
     document.getElementById('filename-chip').textContent=file.name;
+    S.activeSlide=0;
     renderRail(); renderAnalyse(); await renderKeyStatus();
+    renderMainSlidePreview(0);
     document.getElementById('chat-messages').innerHTML=
       `<div class="empty-state" id="chat-empty">
         <i class="fa-solid fa-wand-magic-sparkles"></i>
@@ -1461,6 +1820,14 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('send-btn').addEventListener('click',sendMessage);
   chatIn.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}});
   chatIn.addEventListener('input',()=>{chatIn.style.height='40px';chatIn.style.height=Math.min(chatIn.scrollHeight,120)+'px';});
+
+  document.getElementById('prev-slide-btn').addEventListener('click',()=>{
+    if(S.activeSlide>0)renderMainSlidePreview(S.activeSlide-1);
+  });
+  document.getElementById('next-slide-btn').addEventListener('click',()=>{
+    const max=(S.analysis?.slides.length||1)-1;
+    if(S.activeSlide<max)renderMainSlidePreview(S.activeSlide+1);
+  });
 
   document.getElementById('clear-spec-btn').addEventListener('click',()=>{S.draftSpec=null;renderSpec();toast('Plan zurückgesetzt');});
   document.getElementById('refine-btn').addEventListener('click',()=>{

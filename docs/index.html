@@ -1,186 +1,999 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Slide Writing</title>
-  <style>
-    :root {
-      --ink: #0f172a;
-      --muted: #475569;
-      --line: #dbe3ef;
-      --brand: #206efb;
-      --brand-dark: #165fd9;
-      --accent: #0f766e;
-      --bg: #f7f9fc;
-      --panel: #ffffff;
-      --soft: #eef5ff;
-      --code: #111827;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slide Writing — ROOTS</title>
+<link rel="stylesheet" href="https://fonts.cdnfonts.com/css/circular-std">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+:root {
+  --brand:       #206efb;
+  --brand-dark:  #165fd9;
+  --brand-light: #eff6ff;
+  --ink:         #0f172a;
+  --muted:       #475569;
+  --bg:          #ffffff;
+  --line:        #e2e8f0;
+  --bg-surface:  #f8fafc;
+  --danger:      #dc2626;
+  --radius:      16px;
+  --radius-pill: 999px;
+  --shadow:      0 6px 20px rgba(15,23,42,.08);
+  --shadow-sm:   0 2px 8px rgba(15,23,42,.06);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;color-scheme:light only}
+body{font-family:'Circular Std',system-ui,sans-serif;color:var(--ink);background:var(--bg);display:flex;flex-direction:column}
 
-    * { box-sizing: border-box; }
-    html, body { margin: 0; min-height: 100%; }
-    body {
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      color: var(--ink);
-      background: linear-gradient(180deg, #f8fbff 0%, #eef3f9 100%);
-    }
+/* Upload Phase */
+#upload-phase{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem;gap:2rem;background:var(--bg)}
+.upload-brand{display:flex;align-items:center;gap:.75rem;font-size:1.25rem;font-weight:700;color:var(--ink);letter-spacing:-.01em}
+.upload-brand .dot{width:8px;height:8px;border-radius:50%;background:var(--brand)}
+.drop-zone{width:min(540px,100%);border:2px dashed var(--line);border-radius:var(--radius);padding:3.5rem 2rem;text-align:center;cursor:pointer;transition:all .25s ease;background:var(--bg-surface)}
+.drop-zone:hover,.drop-zone.over{border-color:var(--brand);background:var(--brand-light)}
+.drop-icon{width:56px;height:56px;border-radius:14px;background:var(--brand-light);color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin:0 auto 1.25rem}
+.drop-zone h2{font-size:1.15rem;font-weight:700;margin-bottom:.5rem}
+.drop-zone p{color:var(--muted);font-size:.9rem;margin-bottom:1.25rem}
+.btn-primary{background:var(--brand);color:#fff;border:none;border-radius:var(--radius-pill);padding:.7rem 1.6rem;font-family:inherit;font-size:.9rem;font-weight:600;cursor:pointer;box-shadow:var(--shadow);transition:all .25s ease;display:inline-flex;align-items:center;gap:.5rem}
+.btn-primary:hover{background:var(--brand-dark);transform:translateY(-1px)}
+.btn-primary:disabled{background:#cbd5e1;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-secondary{background:#fff;border:1px solid var(--line);color:var(--ink);border-radius:var(--radius-pill);padding:.65rem 1.4rem;font-family:inherit;font-size:.875rem;font-weight:500;cursor:pointer;transition:all .25s ease;display:inline-flex;align-items:center;gap:.5rem}
+.btn-secondary:hover{border-color:var(--brand);color:var(--brand)}
+#file-input{display:none}
 
-    .shell { max-width: 1180px; margin: 0 auto; padding: 32px 24px 56px; }
-    header {
-      min-height: 72vh;
-      display: grid;
-      grid-template-columns: minmax(0, 1.04fr) minmax(320px, 0.96fr);
-      align-items: center;
-      gap: 48px;
-      border-bottom: 1px solid var(--line);
-    }
+/* Tool Phase */
+#tool-phase{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#tool-phase[hidden]{display:none!important}
+.top-bar{height:52px;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 1.25rem;gap:1rem;flex-shrink:0;background:#fff}
+.top-bar-brand{font-size:.95rem;font-weight:700;color:var(--ink);letter-spacing:-.01em;display:flex;align-items:center;gap:.5rem}
+.top-bar-brand .dot{width:7px;height:7px;border-radius:50%;background:var(--brand)}
+.filename-chip{font-size:.8rem;color:var(--muted);background:var(--bg-surface);border:1px solid var(--line);border-radius:var(--radius-pill);padding:.2rem .75rem;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.top-bar-right{margin-left:auto;display:flex;align-items:center;gap:.75rem}
+.workspace{flex:1;display:flex;overflow:hidden}
 
-    .eyebrow {
-      display: inline-flex;
-      color: var(--brand-dark);
-      font-size: 13px;
-      font-weight: 800;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      margin-bottom: 18px;
-    }
+/* Slide Rail */
+#slide-rail{width:190px;flex-shrink:0;border-right:1px solid var(--line);overflow-y:auto;background:var(--bg-surface);padding:.5rem}
+.rail-header{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:.5rem .5rem .75rem}
+.slide-thumb{border-radius:10px;padding:.6rem .75rem;cursor:pointer;margin-bottom:.25rem;border:1.5px solid transparent;transition:all .2s ease;background:#fff;box-shadow:var(--shadow-sm)}
+.slide-thumb:hover{border-color:var(--brand-light)}
+.slide-thumb.active{border-color:var(--brand);background:var(--brand-light)}
+.slide-thumb-num{font-size:.65rem;font-weight:700;color:var(--brand);margin-bottom:.2rem}
+.slide-thumb-title{font-size:.78rem;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
+.slide-thumb-meta{display:flex;gap:.4rem;margin-top:.3rem;flex-wrap:wrap}
+.meta-chip{font-size:.6rem;font-weight:600;padding:.15rem .4rem;border-radius:4px;color:var(--muted);background:var(--bg-surface);border:1px solid var(--line)}
+.meta-chip.chart{color:#7c3aed;background:#f5f3ff;border-color:#ddd6fe}
+.meta-chip.table{color:#0369a1;background:#e0f2fe;border-color:#bae6fd}
+.meta-chip.img{color:#0f766e;background:#f0fdfa;border-color:#99f6e4}
 
-    h1 { font-size: clamp(44px, 7vw, 84px); line-height: 0.95; margin: 0 0 20px; letter-spacing: 0; }
-    h2 { font-size: 30px; margin: 0 0 14px; letter-spacing: 0; }
-    h3 { font-size: 18px; margin: 0 0 8px; letter-spacing: 0; }
-    p { color: var(--muted); font-size: 17px; line-height: 1.7; margin: 0; }
+/* Main Area */
+#main-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.tab-nav{border-bottom:1px solid var(--line);display:flex;padding:0 1.25rem;background:#fff;flex-shrink:0}
+.tab-btn{padding:.875rem 1.25rem;font-size:.875rem;font-weight:600;color:var(--muted);border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s ease;font-family:inherit;display:flex;align-items:center;gap:.4rem}
+.tab-btn.active{color:var(--brand);border-bottom-color:var(--brand)}
+.tab-btn:hover:not(.active){color:var(--ink)}
+.tab-content{flex:1;overflow-y:auto;padding:1.5rem}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
 
-    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      min-height: 44px;
-      padding: 0 18px;
-      border-radius: 8px;
-      border: 1px solid var(--line);
-      color: var(--ink);
-      text-decoration: none;
-      font-weight: 750;
-      background: #fff;
-    }
+/* Analyse */
+.section-title{font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.75rem}
+.design-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem}
+.design-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:1.25rem;box-shadow:var(--shadow-sm)}
+.design-card h4{font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem}
+.color-row{display:flex;gap:.5rem;flex-wrap:wrap}
+.color-swatch{width:32px;height:32px;border-radius:8px;border:1px solid rgba(0,0,0,.08);cursor:pointer;position:relative;flex-shrink:0}
+.color-swatch::after{content:attr(data-label);position:absolute;bottom:calc(100%+4px);left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;font-size:.65rem;padding:.2rem .4rem;border-radius:4px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s}
+.color-swatch:hover::after{opacity:1}
+.font-display{font-size:1.1rem;color:var(--ink);font-weight:600;margin:.25rem 0 .1rem}
+.font-sub{font-size:.78rem;color:var(--muted)}
+.stat-row{display:flex;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap}
+.stat-box{flex:1;min-width:80px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:.875rem 1rem;box-shadow:var(--shadow-sm);text-align:center}
+.stat-box .value{font-size:1.6rem;font-weight:700;color:var(--brand);line-height:1}
+.stat-box .label{font-size:.72rem;color:var(--muted);margin-top:.25rem;font-weight:500}
+.layouts-list{display:flex;flex-direction:column;gap:.4rem;margin-bottom:1.5rem}
+.layout-item{display:flex;align-items:center;gap:.75rem;background:#fff;border:1px solid var(--line);border-radius:8px;padding:.5rem .75rem;font-size:.82rem}
+.layout-type-badge{font-size:.68rem;font-weight:700;padding:.15rem .5rem;border-radius:4px;background:var(--brand-light);color:var(--brand);white-space:nowrap}
+.slides-table{width:100%;border-collapse:separate;border-spacing:0 .3rem}
+.slides-table th{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);text-align:left;padding:.4rem .75rem}
+.slides-table td{background:#fff;padding:.6rem .75rem;font-size:.82rem}
+.slides-table tr td:first-child{border-radius:8px 0 0 8px;border-left:1px solid var(--line);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.slides-table tr td:last-child{border-radius:0 8px 8px 0;border-right:1px solid var(--line);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.slides-table tr td:not(:first-child):not(:last-child){border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.shape-counts{display:flex;gap:.3rem;flex-wrap:wrap}
 
-    .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
-    .terminal {
-      background: var(--code);
-      color: #e5e7eb;
-      border-radius: 8px;
-      padding: 22px;
-      box-shadow: 0 22px 60px rgba(15, 23, 42, 0.18);
-      overflow: hidden;
-    }
+/* Chat */
+.chat-layout{display:flex;flex-direction:column;gap:1rem;height:calc(100vh - 170px);min-height:0}
+.chat-messages{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:.75rem;padding:.25rem 0;min-height:0}
+.msg{display:flex;flex-direction:column;gap:.2rem;max-width:85%}
+.msg.user{align-self:flex-end;align-items:flex-end}
+.msg.ai{align-self:flex-start;align-items:flex-start}
+.msg-bubble{padding:.75rem 1rem;border-radius:14px;font-size:.875rem;line-height:1.55;word-break:break-word}
+.msg.user .msg-bubble{background:var(--brand);color:#fff;border-radius:14px 14px 4px 14px}
+.msg.ai .msg-bubble{background:#fff;border:1px solid var(--line);color:var(--ink);border-radius:14px 14px 14px 4px;box-shadow:var(--shadow-sm)}
+.msg-time{font-size:.7rem;color:var(--muted)}
+.chat-input-row{display:flex;gap:.75rem;align-items:flex-end;flex-shrink:0;background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:.75rem;box-shadow:var(--shadow-sm)}
+.chat-textarea{flex:1;border:none;outline:none;resize:none;font-family:inherit;font-size:.9rem;color:var(--ink);background:none;min-height:40px;max-height:120px;line-height:1.5}
+.send-btn{width:38px;height:38px;border-radius:50%;border:none;background:var(--brand);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s ease}
+.send-btn:hover{background:var(--brand-dark);transform:scale(1.05)}
+.send-btn:disabled{background:var(--line);cursor:not-allowed;transform:none}
 
-    .terminal-bar { display: flex; gap: 7px; margin-bottom: 18px; }
-    .dot { width: 11px; height: 11px; border-radius: 50%; background: #ef4444; }
-    .dot:nth-child(2) { background: #f59e0b; }
-    .dot:nth-child(3) { background: #22c55e; }
-    pre { margin: 0; white-space: pre-wrap; line-height: 1.65; font-size: 14px; }
-    code { font-family: "SFMono-Regular", Consolas, monospace; }
-    .prompt { color: #93c5fd; }
-    .ok { color: #86efac; }
+/* Spec Panel */
+.spec-panel{border:1px solid var(--line);border-radius:var(--radius);background:#fff;box-shadow:var(--shadow-sm);flex-shrink:0}
+.spec-panel-header{display:flex;align-items:center;justify-content:space-between;padding:.875rem 1.1rem;border-bottom:1px solid var(--line)}
+.spec-panel-title{font-size:.85rem;font-weight:700;display:flex;align-items:center;gap:.5rem}
+.spec-panel-title .count{background:var(--brand);color:#fff;font-size:.7rem;font-weight:700;padding:.1rem .45rem;border-radius:var(--radius-pill)}
+.spec-slides{padding:.5rem .75rem;max-height:180px;overflow-y:auto}
+.spec-slide-item{display:flex;align-items:center;gap:.75rem;padding:.45rem .25rem;border-bottom:1px solid var(--bg-surface);font-size:.82rem}
+.spec-slide-item:last-child{border-bottom:none}
+.spec-slide-num{width:22px;height:22px;border-radius:50%;background:var(--brand-light);color:var(--brand);font-size:.7rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.spec-slide-type{font-size:.68rem;font-weight:700;padding:.1rem .45rem;border-radius:4px;background:var(--bg-surface);color:var(--muted);white-space:nowrap}
+.spec-slide-title{flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gen-bar{padding:.75rem 1rem;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:.75rem}
+.gen-hint{font-size:.78rem;color:var(--muted)}
+.gen-actions{display:flex;gap:.5rem}
 
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 18px;
-      padding-top: 42px;
-    }
-
-    .card {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 22px;
-      min-height: 172px;
-      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.05);
-    }
-
-    .card strong {
-      display: inline-flex;
-      color: var(--accent);
-      margin-bottom: 14px;
-      font-size: 13px;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-    }
-
-    .band {
-      margin-top: 42px;
-      background: var(--soft);
-      border: 1px solid #cfe0ff;
-      border-radius: 8px;
-      padding: 28px;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 24px;
-      align-items: center;
-    }
-
-    @media (max-width: 860px) {
-      header { grid-template-columns: 1fr; min-height: auto; padding: 48px 0; }
-      .grid { grid-template-columns: 1fr; }
-      .band { grid-template-columns: 1fr; }
-    }
-  </style>
+/* Utilities */
+.empty-state{text-align:center;padding:2.5rem 1rem;color:var(--muted)}
+.empty-state i{font-size:2rem;margin-bottom:.75rem;opacity:.4;display:block}
+.empty-state p{font-size:.875rem}
+.loading-dots{display:inline-flex;gap:.3rem;align-items:center}
+.loading-dots span{width:6px;height:6px;border-radius:50%;background:currentColor;animation:blink 1.2s infinite;opacity:.3}
+.loading-dots span:nth-child(2){animation-delay:.2s}
+.loading-dots span:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:.3}40%{opacity:1}}
+.progress-bar-wrap{width:100%;height:4px;background:var(--line);border-radius:2px;margin-top:1rem}
+.progress-bar{height:4px;border-radius:2px;background:var(--brand);width:0%;transition:width .4s ease}
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;z-index:999;background:var(--ink);color:#fff;padding:.75rem 1.25rem;border-radius:10px;font-size:.875rem;box-shadow:var(--shadow);animation:slideUp .3s ease;display:flex;align-items:center;gap:.5rem}
+@keyframes slideUp{from{transform:translateY(10px);opacity:0}to{transform:translateY(0);opacity:1}}
+.toast.success{background:#15803d}.toast.error{background:var(--danger)}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+</style>
 </head>
 <body>
-  <div class="shell">
-    <header>
-      <section>
-        <span class="eyebrow">ROOTS PowerPoint Automation</span>
-        <h1>Slide Writing</h1>
-        <p>Eine eigene, zero-dependency PPTX-Engine, die bestehende PowerPoint-Master ausliest und neue Consulting-Folien im selben Design erzeugt.</p>
-        <div class="actions">
-          <a class="btn primary" href="https://github.com/pgoutzeris-stack/slide-writing">GitHub Repository</a>
-          <a class="btn" href="./ZIELBILD.md">Zielbild lesen</a>
-        </div>
-      </section>
-      <aside class="terminal" aria-label="Slide Writing CLI Beispiel">
-        <div class="terminal-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
-        <pre><code><span class="prompt">$</span> slide-writing validate deck.json
-<span class="ok">OK</span>
 
-<span class="prompt">$</span> slide-writing generate \
-  --template master.pptx \
-  --spec deck.json \
-  --out consulting-deck.pptx
-
-<span class="ok">consulting-deck.pptx</span></code></pre>
-      </aside>
-    </header>
-
-    <section class="grid" aria-label="Kernfunktionen">
-      <article class="card">
-        <strong>Parser</strong>
-        <h3>Master verstehen</h3>
-        <p>Themes, Slide Master, Layouts, Platzhalter, Folieninventar und Relationships werden direkt aus OOXML gelesen.</p>
-      </article>
-      <article class="card">
-        <strong>Builder</strong>
-        <h3>Folien erzeugen</h3>
-        <p>Neue Slides referenzieren Original-Layouts und erzeugen native, editierbare PowerPoint-Shapes, Tabellen, Text und Bilder.</p>
-      </article>
-      <article class="card">
-        <strong>Consulting</strong>
-        <h3>Bausteine nutzen</h3>
-        <p>Agenda, KPI-Kacheln, Harvey Balls, Wasserfall, Balken, Timelines, Vergleichsmatrizen und Callouts sind eingebaut.</p>
-      </article>
-    </section>
-
-    <section class="band">
-      <div>
-        <h2>Automatisierung ohne externe Runtime</h2>
-        <p>Slide Writing läuft mit der Python-Standardbibliothek und ist damit reproduzierbar, prüfbar und exakt auf den ROOTS-Folienbau zugeschnitten.</p>
-      </div>
-      <a class="btn primary" href="https://github.com/pgoutzeris-stack/slide-writing/blob/main/examples/consulting_deck.json">Demo-Spec ansehen</a>
-    </section>
+<!-- UPLOAD PHASE -->
+<div id="upload-phase">
+  <div class="upload-brand"><span class="dot"></span>Slide Writing</div>
+  <div class="drop-zone" id="drop-zone">
+    <div class="drop-icon"><i class="fa-solid fa-file-powerpoint"></i></div>
+    <h2>PowerPoint-Datei hochladen</h2>
+    <p>Ziehe eine .pptx-Datei hierher oder klicke zum Auswählen.<br>
+       Das Tool analysiert das Design und erstellt per KI neue Folien im exakt gleichen Stil.</p>
+    <button class="btn-primary" id="browse-btn">
+      <i class="fa-solid fa-folder-open"></i> Datei auswählen
+    </button>
+    <input type="file" id="file-input" accept=".pptx">
   </div>
+  <div id="upload-progress" style="display:none;width:min(540px,100%);text-align:center">
+    <p style="font-size:.875rem;color:var(--muted)" id="upload-status">Analysiere…</p>
+    <div class="progress-bar-wrap"><div class="progress-bar" id="progress-bar"></div></div>
+  </div>
+</div>
+
+<!-- TOOL PHASE -->
+<div id="tool-phase" hidden>
+  <div class="top-bar">
+    <div class="top-bar-brand"><span class="dot"></span>Slide Writing</div>
+    <div class="filename-chip" id="filename-chip">datei.pptx</div>
+    <div class="top-bar-right">
+      <button class="btn-secondary" id="new-upload-btn">
+        <i class="fa-solid fa-arrow-up-from-bracket"></i> Neue Datei
+      </button>
+    </div>
+  </div>
+
+  <div class="workspace">
+    <aside id="slide-rail">
+      <div class="rail-header">Folien</div>
+      <div id="slide-thumbs"></div>
+    </aside>
+
+    <div id="main-area">
+      <nav class="tab-nav">
+        <button class="tab-btn active" data-tab="analyse">
+          <i class="fa-solid fa-chart-pie"></i> Analyse
+        </button>
+        <button class="tab-btn" data-tab="chat">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> KI-Assistent
+        </button>
+      </nav>
+
+      <div class="tab-content">
+        <!-- ANALYSE TAB -->
+        <div class="tab-panel active" id="tab-analyse">
+          <div class="stat-row" id="stat-row"></div>
+          <div class="design-grid">
+            <div class="design-card">
+              <h4>Farbpalette</h4>
+              <div class="color-row" id="color-swatches"></div>
+            </div>
+            <div class="design-card">
+              <h4>Schriftarten</h4>
+              <div id="fonts-display"></div>
+            </div>
+          </div>
+          <div class="section-title">Layouts im Template</div>
+          <div class="layouts-list" id="layouts-list"></div>
+          <div class="section-title">Folien-Übersicht</div>
+          <table class="slides-table">
+            <thead><tr><th>#</th><th>Titel</th><th>Layout</th><th>Elemente</th></tr></thead>
+            <tbody id="slides-tbody"></tbody>
+          </table>
+        </div>
+
+        <!-- CHAT TAB -->
+        <div class="tab-panel" id="tab-chat">
+          <div class="chat-layout">
+            <div class="chat-messages" id="chat-messages">
+              <div class="empty-state" id="chat-empty">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <p>Beschreibe, welche neuen Folien du brauchst.<br>Der Assistent plant sie im Stil deines Templates.</p>
+              </div>
+            </div>
+            <div class="chat-input-row">
+              <textarea class="chat-textarea" id="chat-input" rows="1"
+                placeholder="z.B. „3 neue Folien: Executive Summary, KPI-Dashboard, Timeline Q3…""></textarea>
+              <button class="send-btn" id="send-btn" title="Senden">
+                <i class="fa-solid fa-paper-plane"></i>
+              </button>
+            </div>
+            <div class="spec-panel" id="spec-panel" style="display:none">
+              <div class="spec-panel-header">
+                <div class="spec-panel-title">
+                  <i class="fa-solid fa-layer-group" style="color:var(--brand)"></i>
+                  Geplante Folien <span class="count" id="spec-count">0</span>
+                </div>
+                <button class="btn-secondary" id="clear-spec-btn" style="font-size:.78rem;padding:.3rem .8rem">
+                  Zurücksetzen
+                </button>
+              </div>
+              <div class="spec-slides" id="spec-slides-list"></div>
+              <div class="gen-bar">
+                <span class="gen-hint" id="gen-hint">Bereit zur Generierung</span>
+                <div class="gen-actions">
+                  <button class="btn-secondary" id="refine-btn">
+                    <i class="fa-solid fa-pen"></i> Verfeinern
+                  </button>
+                  <button class="btn-primary" id="generate-btn">
+                    <i class="fa-solid fa-download"></i> Generieren &amp; Download
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ── Config ──────────────────────────────────────────────────
+const SB_FUNC = 'https://csmguwcvzreefluhahyu.supabase.co/functions/v1/slide-writing-ai';
+const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNzbWd1d2N2enJlZWZsdWhhaHl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NjM0ODcsImV4cCI6MjA5MjUzOTQ4N30.Fiafx7XBaQZXUX3bKQIBH7znBHx3B51yL-bftOHsL4Q';
+
+const NSMAP = {
+  p:   'http://schemas.openxmlformats.org/presentationml/2006/main',
+  a:   'http://schemas.openxmlformats.org/drawingml/2006/main',
+  r:   'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
+  rel: 'http://schemas.openxmlformats.org/package/2006/relationships',
+};
+const CHART_URI = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
+const TABLE_URI = 'http://schemas.openxmlformats.org/drawingml/2006/table';
+const SLIDE_LABELS = {
+  title:'Titel',section:'Abschnitt',bullets:'Inhalt',agenda:'Agenda',
+  kpi:'KPIs',table:'Tabelle',waterfall:'Wasserfall',bars:'Balken',
+  timeline:'Timeline',comparison:'Vergleich',process:'Prozess',
+  gantt:'Gantt',pie:'Diagramm',blank:'Leer',
+};
+
+// App state
+const S = {
+  file:null, filename:'', entries:null, analysis:null,
+  messages:[], draftSpec:null, activeSlide:0,
+};
+
+// ── CRC32 ───────────────────────────────────────────────────
+const CRC_T = (() => {
+  const t = new Uint32Array(256);
+  for (let i=0;i<256;i++){let c=i;for(let j=0;j<8;j++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[i]=c;}
+  return t;
+})();
+function crc32(d){let c=0xFFFFFFFF;for(let i=0;i<d.length;i++)c=(c>>>8)^CRC_T[(c^d[i])&0xFF];return(c^0xFFFFFFFF)>>>0;}
+
+// ── ZIP READER ──────────────────────────────────────────────
+async function inflate(data) {
+  const ds = new DecompressionStream('deflate-raw');
+  const w = ds.writable.getWriter(), r = ds.readable.getReader();
+  w.write(data); w.close();
+  const chunks = [];
+  for (;;) { const {done,value} = await r.read(); if (done) break; chunks.push(value); }
+  const out = new Uint8Array(chunks.reduce((s,c)=>s+c.length,0));
+  let p=0; for (const c of chunks){out.set(c,p);p+=c.length;}
+  return out;
+}
+
+async function readZip(buf) {
+  const view = new DataView(buf), bytes = new Uint8Array(buf);
+  const dec = new TextDecoder();
+  let eocd=-1;
+  for (let i=view.byteLength-22;i>=Math.max(0,view.byteLength-65558);i--)
+    if (view.getUint32(i,true)===0x06054b50){eocd=i;break;}
+  if (eocd<0) throw new Error('Keine valide PPTX-Datei (kein ZIP-Ende gefunden)');
+  const cdOff = view.getUint32(eocd+16,true);
+  const nEntries = view.getUint16(eocd+10,true);
+  const entries = {};
+  let pos = cdOff;
+  for (let i=0;i<nEntries;i++) {
+    if (view.getUint32(pos,true)!==0x02014b50) break;
+    const method   = view.getUint16(pos+10,true);
+    const compSz   = view.getUint32(pos+20,true);
+    const fnLen    = view.getUint16(pos+28,true);
+    const extraLen = view.getUint16(pos+30,true);
+    const commLen  = view.getUint16(pos+32,true);
+    const localOff = view.getUint32(pos+42,true);
+    const name = dec.decode(bytes.slice(pos+46,pos+46+fnLen));
+    pos += 46+fnLen+extraLen+commLen;
+    const lFnLen    = view.getUint16(localOff+26,true);
+    const lExtraLen = view.getUint16(localOff+28,true);
+    const dataOff   = localOff+30+lFnLen+lExtraLen;
+    const comp = bytes.slice(dataOff, dataOff+compSz);
+    try {
+      entries[name] = method===0 ? comp.slice() : method===8 && compSz>0 ? await inflate(comp) : comp.slice();
+    } catch { /* skip */ }
+  }
+  return entries;
+}
+
+// ── ZIP WRITER ──────────────────────────────────────────────
+function buildZip(entries) {
+  const enc = new TextEncoder();
+  const lparts=[], cds=[];
+  let off=0;
+  for (const [name,data] of Object.entries(entries)) {
+    const nb = enc.encode(name);
+    const chk = crc32(data);
+    const sz = data.length;
+    const lh = new Uint8Array(30+nb.length);
+    const lv = new DataView(lh.buffer);
+    lv.setUint32(0,0x04034b50,true); lv.setUint16(4,20,true);
+    lv.setUint16(6,0,true); lv.setUint16(8,0,true); // STORE
+    lv.setUint16(10,0,true); lv.setUint16(12,0x4A52,true);
+    lv.setUint32(14,chk,true); lv.setUint32(18,sz,true); lv.setUint32(22,sz,true);
+    lv.setUint16(26,nb.length,true); lv.setUint16(28,0,true);
+    lh.set(nb,30);
+    lparts.push(lh,data);
+    const cd = new Uint8Array(46+nb.length);
+    const cv = new DataView(cd.buffer);
+    cv.setUint32(0,0x02014b50,true); cv.setUint16(4,20,true); cv.setUint16(6,20,true);
+    cv.setUint16(8,0,true); cv.setUint16(10,0,true);
+    cv.setUint16(12,0,true); cv.setUint16(14,0x4A52,true);
+    cv.setUint32(16,chk,true); cv.setUint32(20,sz,true); cv.setUint32(24,sz,true);
+    cv.setUint16(28,nb.length,true); cv.setUint16(30,0,true); cv.setUint16(32,0,true);
+    cv.setUint16(34,0,true); cv.setUint16(36,0,true); cv.setUint32(38,0,true);
+    cv.setUint32(42,off,true); cd.set(nb,46);
+    cds.push(cd);
+    off += lh.length+sz;
+  }
+  const cdSz = cds.reduce((s,e)=>s+e.length,0);
+  const eocd = new Uint8Array(22); const ev=new DataView(eocd.buffer);
+  ev.setUint32(0,0x06054b50,true); ev.setUint16(4,0,true); ev.setUint16(6,0,true);
+  ev.setUint16(8,cds.length,true); ev.setUint16(10,cds.length,true);
+  ev.setUint32(12,cdSz,true); ev.setUint32(16,off,true); ev.setUint16(20,0,true);
+  const all=[...lparts,...cds,eocd];
+  const total=all.reduce((s,p)=>s+p.length,0);
+  const out=new Uint8Array(total); let p=0;
+  for (const part of all){out.set(part,p);p+=part.length;}
+  return out;
+}
+
+// ── XML UTILS ───────────────────────────────────────────────
+const DEC = new TextDecoder(), ENC2 = new TextEncoder();
+const parseXml = d => new DOMParser().parseFromString(typeof d==='string'?d:DEC.decode(d),'text/xml');
+const xq  = (el,ns,n) => [...el.getElementsByTagNameNS(NSMAP[ns],n)];
+const xq1 = (el,ns,n) => el.getElementsByTagNameNS(NSMAP[ns],n)[0]||null;
+
+function parseRels(data) {
+  if (!data) return {};
+  const doc = parseXml(data), map = {};
+  for (const r of xq(doc,'rel','Relationship'))
+    map[r.getAttribute('Id')]={type:r.getAttribute('Type')||'',target:r.getAttribute('Target')||''};
+  return map;
+}
+
+function relsKey(pn) {
+  const i=pn.lastIndexOf('/');
+  return i<0?`_rels/${pn}.rels`:pn.slice(0,i)+'/_rels/'+pn.slice(i+1)+'.rels';
+}
+
+function resolveTgt(src, tgt) {
+  try {
+    return new URL(tgt,'http://x/'+src.replace(/^\//,'')).pathname.replace(/^\//,'');
+  } catch {
+    return src.replace(/\/[^/]+$/,'/')+tgt;
+  }
+}
+
+const xmlEsc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+// ── PPTX ANALYZER ──────────────────────────────────────────
+async function analyzePptx(entries) {
+  const a = { slideWidth:12192000, slideHeight:6858000,
+               theme:{colors:{},majorFont:'Calibri Light',minorFont:'Calibri'},
+               layouts:[], slides:[] };
+  const presData = entries['ppt/presentation.xml'];
+  if (!presData) throw new Error('Keine gültige Präsentation (ppt/presentation.xml fehlt)');
+  const presDoc = parseXml(presData);
+  const sldSz = xq1(presDoc,'p','sldSz');
+  if (sldSz) {
+    a.slideWidth  = +sldSz.getAttribute('cx')||12192000;
+    a.slideHeight = +sldSz.getAttribute('cy')||6858000;
+  }
+  const presRels = parseRels(entries[relsKey('ppt/presentation.xml')]);
+
+  // Master
+  const mRel = Object.values(presRels).find(r=>r.type.endsWith('/slideMaster'));
+  if (!mRel) throw new Error('Kein Slide Master in der Datei');
+  const masterPn = resolveTgt('ppt/presentation.xml', mRel.target);
+  const masterData = entries[masterPn];
+  if (!masterData) throw new Error('Slide Master nicht lesbar');
+  const masterDoc = parseXml(masterData);
+  const masterRels = parseRels(entries[relsKey(masterPn)]);
+
+  // Theme
+  const thRel = Object.values(masterRels).find(r=>r.type.endsWith('/theme'));
+  if (thRel) {
+    const thPn = resolveTgt(masterPn, thRel.target);
+    const thData = entries[thPn];
+    if (thData) {
+      const thDoc = parseXml(thData);
+      const cs = xq1(thDoc,'a','clrScheme');
+      if (cs) {
+        for (const slot of ['dk1','lt1','dk2','lt2','accent1','accent2','accent3','accent4','accent5','accent6','hlink','folHlink']) {
+          const el = cs.getElementsByTagNameNS(NSMAP.a,slot)[0];
+          if (!el) continue;
+          const rgb = el.getElementsByTagNameNS(NSMAP.a,'srgbClr')[0];
+          const sys = el.getElementsByTagNameNS(NSMAP.a,'sysClr')[0];
+          a.theme.colors[slot] = rgb ? rgb.getAttribute('val')||'CCCCCC'
+                                     : sys ? sys.getAttribute('lastClr')||(slot.includes('lt')?'FFFFFF':'000000')
+                                     : 'CCCCCC';
+        }
+      }
+      const maj = thDoc.getElementsByTagNameNS(NSMAP.a,'majorFont')[0];
+      const min = thDoc.getElementsByTagNameNS(NSMAP.a,'minorFont')[0];
+      if (maj){const l=maj.getElementsByTagNameNS(NSMAP.a,'latin')[0];if(l)a.theme.majorFont=l.getAttribute('typeface')||'Calibri Light';}
+      if (min){const l=min.getElementsByTagNameNS(NSMAP.a,'latin')[0];if(l)a.theme.minorFont=l.getAttribute('typeface')||'Calibri';}
+    }
+  }
+
+  // Layouts
+  for (const [,rel] of Object.entries(masterRels)) {
+    if (!rel.type.endsWith('/slideLayout')) continue;
+    const lpn = resolveTgt(masterPn, rel.target);
+    const ld = entries[lpn]; if (!ld) continue;
+    const ldoc = parseXml(ld);
+    const cSld = xq1(ldoc,'p','cSld');
+    const name = cSld?.getAttribute('name')||'';
+    const ltype = ldoc.documentElement.getAttribute('type')||'';
+    a.layouts.push({name, type:ltype, partname:lpn});
+  }
+
+  // Slides
+  const sldIdLst = xq1(presDoc,'p','sldIdLst');
+  for (const sldId of sldIdLst ? xq(sldIdLst,'p','sldId') : []) {
+    const rid = sldId.getAttributeNS(NSMAP.r,'id')||sldId.getAttribute('r:id')||'';
+    const rel = presRels[rid]; if (!rel) continue;
+    const spn = resolveTgt('ppt/presentation.xml', rel.target);
+    const sd = entries[spn]; if (!sd) continue;
+    const sdoc = parseXml(sd);
+    const sRels = parseRels(entries[relsKey(spn)]);
+    const lRel = Object.values(sRels).find(r=>r.type.endsWith('/slideLayout'));
+    a.slides.push({
+      index: a.slides.length,
+      partname: spn,
+      layoutPartname: lRel ? resolveTgt(spn, lRel.target) : '',
+      title: extractTitle(sdoc),
+      counts: countShapes(sdoc),
+    });
+  }
+  return a;
+}
+
+function extractTitle(doc) {
+  const tree = xq1(doc,'p','spTree'); if (!tree) return null;
+  for (const sp of xq(tree,'p','sp')) {
+    const nvPr = xq1(sp,'p','nvPr'); if (!nvPr) continue;
+    const ph = xq1(nvPr,'p','ph'); if (!ph) continue;
+    const t = ph.getAttribute('type')||'';
+    if (t==='title'||t==='ctrTitle') {
+      const tb = xq1(sp,'p','txBody');
+      if (tb) { const ts=xq(tb,'a','t').map(e=>e.textContent).filter(Boolean); return ts.join('')||null; }
+    }
+  }
+  return null;
+}
+
+function countShapes(doc) {
+  const tree = xq1(doc,'p','spTree');
+  if (!tree) return {shapes:0,images:0,tables:0,charts:0,connectors:0};
+  let shapes=0,images=0,tables=0,charts=0,connectors=0;
+  for (const ch of tree.children) {
+    const ln = ch.localName;
+    if (ln==='sp') shapes++;
+    else if (ln==='pic') images++;
+    else if (ln==='graphicFrame') {
+      const gd=ch.getElementsByTagNameNS(NSMAP.a,'graphicData')[0];
+      const uri=gd?.getAttribute('uri')||'';
+      if (uri===CHART_URI) charts++; else if (uri===TABLE_URI) tables++; else shapes++;
+    } else if (ln==='cxnSp') connectors++;
+    else if (ln==='grpSp') shapes++;
+  }
+  return {shapes,images,tables,charts,connectors};
+}
+
+// ── SLIDE XML BUILDER ───────────────────────────────────────
+const TYPE_TO_LAYOUT = {
+  title:'title',section:'secHead',bullets:'obj',blank:'blank',
+  agenda:'titleOnly',kpi:'titleOnly',table:'titleOnly',
+  waterfall:'titleOnly',bars:'titleOnly',timeline:'titleOnly',
+  comparison:'titleOnly',process:'titleOnly',gantt:'titleOnly',pie:'titleOnly',
+};
+
+function findLayout(analysis, ltype) {
+  return (analysis.layouts.find(l=>l.type===ltype) ||
+          analysis.layouts.find(l=>l.type==='obj') ||
+          analysis.layouts.find(l=>l.type==='titleOnly') ||
+          analysis.layouts[0])?.partname || '';
+}
+
+function normalizeBullets(items) {
+  return (items||[]).map(b =>
+    typeof b==='string' ? {text:b,level:0} :
+    typeof b==='object' ? {text:b.text||'',level:b.level||0} :
+    {text:String(b),level:0}
+  );
+}
+
+function buildSlideXml(spec) {
+  const type = spec.type || 'bullets';
+  let id = 2, shp = '';
+
+  const ph = (phType,idx,title,content) => {
+    const idxAttr = idx!=null ? ` idx="${idx}"` : '';
+    const typeAttr = phType ? ` type="${phType}"` : '';
+    const paras = typeof content === 'string'
+      ? `<a:p><a:r><a:t>${xmlEsc(content)}</a:t></a:r></a:p>`
+      : (content || []).map(({text,level}) =>
+          `<a:p>${level?`<a:pPr lvl="${level}"/>`:''}${text?`<a:r><a:t>${xmlEsc(text)}</a:t></a:r>`:''}</a:p>`
+        ).join('');
+    return `<p:sp>
+      <p:nvSpPr><p:cNvPr id="${id++}" name="${xmlEsc(title)}"/>
+        <p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr>
+        <p:nvPr><p:ph${typeAttr}${idxAttr}/></p:nvPr></p:nvSpPr>
+      <p:spPr/>
+      <p:txBody><a:bodyPr/><a:lstStyle/>${paras||'<a:p/>'}</p:txBody>
+    </p:sp>`;
+  };
+
+  if (type==='title') {
+    shp = ph('ctrTitle',null,'Title 1',spec.title||'')
+        + ph('subTitle',1,'Subtitle 2',spec.subtitle||'');
+  } else if (type==='section') {
+    shp = ph('title',null,'Title 1',spec.title||'');
+    if (spec.number) {
+      shp += `<p:sp>
+        <p:nvSpPr><p:cNvPr id="${id++}" name="Num"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>
+        <p:spPr>
+          <a:xfrm><a:off x="685800" y="685800"/><a:ext cx="1371600" cy="1828800"/></a:xfrm>
+          <a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/>
+        </p:spPr>
+        <p:txBody><a:bodyPr/><a:lstStyle/>
+          <a:p><a:r><a:rPr lang="de-DE" sz="6000" b="1"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill></a:rPr>
+          <a:t>${xmlEsc(String(spec.number))}</a:t></a:r></a:p>
+        </p:txBody>
+      </p:sp>`;
+    }
+  } else if (type==='table' && spec.columns?.length && spec.rows?.length) {
+    shp = ph('title',null,'Title 1',spec.title||'')
+        + buildTableShape(id++, spec.columns, spec.rows);
+  } else if (type==='agenda' && spec.items?.length) {
+    const bullets = spec.items.map((it,i) => ({
+      text: `${i+1}. ${it}`, level:0
+    }));
+    shp = ph('title',null,'Title 1',spec.title||'')
+        + ph(null,1,'Content 2',bullets);
+  } else if (type==='kpi' && spec.kpis?.length) {
+    const bullets = spec.kpis.map(k =>
+      ({text:`${k.value}  ${k.label}${k.delta?' ('+k.delta+')':''}`, level:0})
+    );
+    shp = ph('title',null,'Title 1',spec.title||'')
+        + ph(null,1,'Content 2',bullets);
+  } else if (type==='timeline' && spec.phases?.length) {
+    const bullets = spec.phases.map(p => ({text:p.label+(p.sub?' — '+p.sub:''),level:0}));
+    shp = ph('title',null,'Title 1',spec.title||'')
+        + ph(null,1,'Content 2',bullets);
+  } else if (type==='waterfall' && spec.items?.length) {
+    const bullets = spec.items.map(it =>
+      ({text:`${it.label}: ${it.value>0?'+':''}${it.value}`,level:0})
+    );
+    shp = ph('title',null,'Title 1',spec.title||'')
+        + ph(null,1,'Content 2',bullets);
+  } else if (type==='bars' && spec.categories?.length) {
+    const bullets = spec.categories.map((c,i) =>
+      ({text:`${c}: ${spec.values?.[i]??''}`,level:0})
+    );
+    shp = ph('title',null,'Title 1',spec.title||'')
+        + ph(null,1,'Content 2',bullets);
+  } else {
+    // Generic: title + bullets/content
+    const bullets = normalizeBullets(spec.bullets||spec.items||[]);
+    let extra = [];
+    if (!bullets.length) extra.push({text:`[${SLIDE_LABELS[type]||type} — Inhalt in PowerPoint ergänzen]`,level:0});
+    shp = ph('title',null,'Title 1',spec.title||'')
+        + ph(null,1,'Content 2',[...bullets,...extra]);
+  }
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/>
+      <a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>
+    ${shp}
+  </p:spTree></p:cSld>
+  <p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>
+</p:sld>`;
+}
+
+function buildTableShape(frameId, columns, rows) {
+  const X=685800, Y=2286000, W=10820400;
+  const H=Math.min(3886200,(rows.length+1)*457200);
+  const cw=Math.floor(W/columns.length), lastCw=W-cw*(columns.length-1);
+  const rh=Math.floor(H/(rows.length+1));
+  const grid=columns.map((_,i)=>`<a:gridCol w="${i===columns.length-1?lastCw:cw}"/>`).join('');
+  const cell=(txt,hdr)=>`<a:tc>
+    <a:txBody><a:bodyPr/><a:lstStyle/>
+      <a:p><a:r><a:rPr lang="de-DE"${hdr?' b="1"':''}>${hdr?'<a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill>':''}</a:rPr>
+      <a:t>${xmlEsc(String(txt??''))}</a:t></a:r></a:p>
+    </a:txBody>
+    <a:tcPr marL="91440" marR="91440" marT="45720" marB="45720">
+      ${hdr?'<a:solidFill><a:schemeClr val="accent1"/></a:solidFill>':''}
+      <a:lnL w="9525"><a:solidFill><a:srgbClr val="D9D9D9"/></a:solidFill></a:lnL>
+      <a:lnR w="9525"><a:solidFill><a:srgbClr val="D9D9D9"/></a:solidFill></a:lnR>
+      <a:lnT w="9525"><a:solidFill><a:srgbClr val="D9D9D9"/></a:solidFill></a:lnT>
+      <a:lnB w="9525"><a:solidFill><a:srgbClr val="D9D9D9"/></a:solidFill></a:lnB>
+    </a:tcPr></a:tc>`;
+  const hRow=`<a:tr h="${rh}">${columns.map(c=>cell(c,true)).join('')}</a:tr>`;
+  const bRows=rows.map(row=>`<a:tr h="${rh}">${columns.map((_,ci)=>cell(row[ci],false)).join('')}</a:tr>`).join('');
+  return `<p:graphicFrame>
+    <p:nvGraphicFramePr><p:cNvPr id="${frameId}" name="Table"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+    <p:xfrm><a:off x="${X}" y="${Y}"/><a:ext cx="${W}" cy="${H}"/></p:xfrm>
+    <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table">
+      <a:tbl><a:tblPr firstRow="1" bandRow="1"/>
+        <a:tblGrid>${grid}</a:tblGrid>${hRow}${bRows}
+      </a:tbl>
+    </a:graphicData></a:graphic>
+  </p:graphicFrame>`;
+}
+
+function buildSlideRels(layoutTarget) {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="${layoutTarget}"/>
+</Relationships>`;
+}
+
+// ── PPTX GENERATOR ─────────────────────────────────────────
+async function generatePptx(entries, specs, analysis) {
+  const out = {...entries};
+
+  // Next slide number
+  const nums = Object.keys(out).filter(k=>/^ppt\/slides\/slide\d+\.xml$/.test(k))
+    .map(k=>+k.match(/slide(\d+)/)[1]);
+  let nextNum = nums.length ? Math.max(...nums)+1 : 1;
+
+  // Max slide id
+  const presXmlStr = DEC.decode(out['ppt/presentation.xml']);
+  let maxId = 255;
+  for (const m of presXmlStr.matchAll(/sldId[^>]+id="(\d+)"/g)) maxId=Math.max(maxId,+m[1]);
+
+  // Next rId
+  const presRelsKey = relsKey('ppt/presentation.xml');
+  const presRelsStr = out[presRelsKey] ? DEC.decode(out[presRelsKey]) : '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>';
+  let nextRid = 1;
+  for (const m of presRelsStr.matchAll(/Id="rId(\d+)"/g)) nextRid=Math.max(nextRid,+m[1]+1);
+
+  let presXml = presXmlStr, ctXml = DEC.decode(out['[Content_Types].xml']), relsXml = presRelsStr;
+
+  for (const spec of specs) {
+    const n = nextNum++, sid = ++maxId, rid = `rId${nextRid++}`;
+    const slideKey = `ppt/slides/slide${n}.xml`;
+    const slideRKey = `ppt/slides/_rels/slide${n}.xml.rels`;
+    const ltype = TYPE_TO_LAYOUT[spec.type||'bullets'] || 'obj';
+    const lpn = findLayout(analysis, ltype);
+    const lTarget = '../slideLayouts/' + (lpn.split('/').pop());
+
+    out[slideKey]  = ENC2.encode(buildSlideXml(spec));
+    out[slideRKey] = ENC2.encode(buildSlideRels(lTarget));
+
+    presXml = presXml.replace('</p:sldIdLst>',
+      `<p:sldId id="${sid}" r:id="${rid}"/></p:sldIdLst>`);
+    ctXml = ctXml.replace('</Types>',
+      `<Override PartName="/${slideKey}" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/></Types>`);
+    relsXml = relsXml.replace('</Relationships>',
+      `<Relationship Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${n}.xml"/></Relationships>`);
+  }
+
+  out['ppt/presentation.xml'] = ENC2.encode(presXml);
+  out['[Content_Types].xml']  = ENC2.encode(ctXml);
+  out[presRelsKey]            = ENC2.encode(relsXml);
+  return buildZip(out);
+}
+
+// ── AI CLIENT ──────────────────────────────────────────────
+async function callAI(message) {
+  const a = S.analysis;
+  const payload = {
+    action:'chat', message,
+    messages: S.messages.slice(-12),
+    analysis:{
+      slideSize:[a.slideWidth,a.slideHeight],
+      layouts:a.layouts.map(l=>({name:l.name,type:l.type})),
+      theme:a.theme,
+      slides:a.slides.map(s=>({index:s.index,title:s.title,layoutFile:s.layoutPartname?.split('/').pop()})),
+    },
+    deep_analysis:{
+      slideCount:a.slides.length,
+      totalCharts:a.slides.reduce((s,sl)=>s+(sl.counts?.charts||0),0),
+      totalTables:a.slides.reduce((s,sl)=>s+(sl.counts?.tables||0),0),
+      totalImages:a.slides.reduce((s,sl)=>s+(sl.counts?.images||0),0),
+    },
+    draft_spec: S.draftSpec,
+  };
+  const resp = await fetch(SB_FUNC, {
+    method:'POST',
+    headers:{'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY},
+    body:JSON.stringify(payload),
+  });
+  if (!resp.ok) { const e=await resp.json().catch(()=>({error:'HTTP '+resp.status})); throw new Error(e.error||'AI-Fehler'); }
+  return resp.json();
+}
+
+// ── UI HELPERS ──────────────────────────────────────────────
+const escHtml = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+function toast(msg, type='') {
+  const t=document.createElement('div');
+  t.className='toast '+type;
+  const icon = type==='success'?'fa-check':type==='error'?'fa-xmark':'fa-circle-info';
+  t.innerHTML=`<i class="fa-solid ${icon}"></i> ${escHtml(msg)}`;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(),3500);
+}
+
+function setProgress(pct, label) {
+  document.getElementById('progress-bar').style.width=pct+'%';
+  document.getElementById('upload-status').textContent=label;
+}
+
+function addMsg(role, text) {
+  document.getElementById('chat-empty')?.remove();
+  const box = document.getElementById('chat-messages');
+  const t = new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+  const d = document.createElement('div');
+  d.className='msg '+role;
+  d.innerHTML=`<div class="msg-bubble">${escHtml(text).replace(/\n/g,'<br>')}</div><div class="msg-time">${t}</div>`;
+  box.appendChild(d); box.scrollTop=box.scrollHeight;
+}
+
+function addLoading() {
+  document.getElementById('chat-empty')?.remove();
+  const box=document.getElementById('chat-messages');
+  const d=document.createElement('div'); d.className='msg ai'; d.id='loading-msg';
+  d.innerHTML=`<div class="msg-bubble"><div class="loading-dots"><span></span><span></span><span></span></div></div>`;
+  box.appendChild(d); box.scrollTop=box.scrollHeight;
+}
+
+// ── RENDER ──────────────────────────────────────────────────
+function renderRail() {
+  const el=document.getElementById('slide-thumbs');
+  el.innerHTML=S.analysis.slides.map((s,i)=>{
+    const c=s.counts||{};
+    const chips=[];
+    if(c.charts) chips.push(`<span class="meta-chip chart"><i class="fa-solid fa-chart-bar"></i> ${c.charts}</span>`);
+    if(c.tables) chips.push(`<span class="meta-chip table"><i class="fa-solid fa-table"></i> ${c.tables}</span>`);
+    if(c.images) chips.push(`<span class="meta-chip img"><i class="fa-solid fa-image"></i> ${c.images}</span>`);
+    return `<div class="slide-thumb${i===S.activeSlide?' active':''}" data-idx="${i}">
+      <div class="slide-thumb-num">Folie ${i+1}</div>
+      <div class="slide-thumb-title">${escHtml(s.title||'(kein Titel)')}</div>
+      ${chips.length?`<div class="slide-thumb-meta">${chips.join('')}</div>`:''}
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.slide-thumb').forEach(e=>{
+    e.addEventListener('click',()=>{
+      S.activeSlide=+e.dataset.idx;
+      el.querySelectorAll('.slide-thumb').forEach(x=>x.classList.remove('active'));
+      e.classList.add('active');
+    });
+  });
+}
+
+function renderAnalyse() {
+  const a=S.analysis;
+  const tot={shapes:0,images:0,tables:0,charts:0};
+  for(const s of a.slides) for(const k of Object.keys(tot)) tot[k]+=(s.counts?.[k]||0);
+
+  document.getElementById('stat-row').innerHTML=[
+    {l:'Folien',v:a.slides.length,i:'fa-file-powerpoint'},
+    {l:'Layouts',v:a.layouts.length,i:'fa-layer-group'},
+    {l:'Charts',v:tot.charts,i:'fa-chart-bar'},
+    {l:'Tabellen',v:tot.tables,i:'fa-table'},
+    {l:'Bilder',v:tot.images,i:'fa-image'},
+  ].map(({l,v,i})=>`<div class="stat-box"><div class="value">${v}</div><div class="label"><i class="fa-solid ${i}"></i> ${l}</div></div>`).join('');
+
+  const slots=['accent1','accent2','accent3','accent4','accent5','accent6','dk1','dk2','lt1','lt2'];
+  document.getElementById('color-swatches').innerHTML=slots
+    .filter(s=>a.theme.colors[s])
+    .map(s=>`<div class="color-swatch" style="background:#${a.theme.colors[s]}" data-label="${s}" title="${s}: #${a.theme.colors[s]}"></div>`)
+    .join('');
+
+  document.getElementById('fonts-display').innerHTML=`
+    <div class="font-display">${escHtml(a.theme.majorFont)}</div><div class="font-sub">Major (Überschriften)</div>
+    <div class="font-display" style="margin-top:.75rem">${escHtml(a.theme.minorFont)}</div><div class="font-sub">Minor (Fließtext)</div>`;
+
+  document.getElementById('layouts-list').innerHTML=a.layouts.map(l=>
+    `<div class="layout-item"><span class="layout-type-badge">${escHtml(l.type||'custom')}</span><span>${escHtml(l.name||'(unnamed)')}</span></div>`
+  ).join('');
+
+  document.getElementById('slides-tbody').innerHTML=a.slides.map(s=>{
+    const c=s.counts||{};
+    const chips=[];
+    if(c.shapes) chips.push(`<span class="meta-chip">${c.shapes} Shapes</span>`);
+    if(c.charts) chips.push(`<span class="meta-chip chart">${c.charts} Charts</span>`);
+    if(c.tables) chips.push(`<span class="meta-chip table">${c.tables} Tabellen</span>`);
+    if(c.images) chips.push(`<span class="meta-chip img">${c.images} Bilder</span>`);
+    const ln=a.layouts.find(l=>l.partname===s.layoutPartname)?.name||s.layoutPartname?.split('/').pop()||'—';
+    return `<tr>
+      <td style="font-weight:700;color:var(--muted);font-size:.78rem">${s.index+1}</td>
+      <td style="font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(s.title||'(kein Titel)')}</td>
+      <td style="font-size:.78rem;color:var(--muted)">${escHtml(ln)}</td>
+      <td><div class="shape-counts">${chips.join('')}</div></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderSpec() {
+  const spec=S.draftSpec, panel=document.getElementById('spec-panel');
+  if (!spec?.slides?.length){panel.style.display='none';return;}
+  panel.style.display='block';
+  document.getElementById('spec-count').textContent=spec.slides.length;
+  document.getElementById('spec-slides-list').innerHTML=spec.slides.map((s,i)=>
+    `<div class="spec-slide-item">
+      <div class="spec-slide-num">${i+1}</div>
+      <span class="spec-slide-type">${SLIDE_LABELS[s.type]||s.type||'?'}</span>
+      <span class="spec-slide-title">${escHtml(s.title||'(kein Titel)')}</span>
+    </div>`
+  ).join('');
+}
+
+// ── HANDLERS ────────────────────────────────────────────────
+async function handleFile(file) {
+  if (!file?.name.toLowerCase().endsWith('.pptx')){toast('Bitte eine .pptx-Datei hochladen','error');return;}
+  S.file=file; S.filename=file.name; S.messages=[]; S.draftSpec=null;
+  document.getElementById('upload-progress').style.display='block';
+  document.getElementById('browse-btn').disabled=true;
+  setProgress(10,'Lese Datei…');
+  try {
+    const buf=await file.arrayBuffer();
+    setProgress(25,'Entpacke ZIP…');
+    const entries=await readZip(buf);
+    S.entries=entries;
+    setProgress(55,'Analysiere Design…');
+    S.analysis=await analyzePptx(entries);
+    setProgress(90,'Fertig!');
+    await new Promise(r=>setTimeout(r,250));
+    document.getElementById('upload-phase').style.display='none';
+    document.getElementById('tool-phase').hidden=false;
+    document.getElementById('filename-chip').textContent=file.name;
+    renderRail(); renderAnalyse();
+    document.getElementById('chat-messages').innerHTML=
+      `<div class="empty-state" id="chat-empty">
+        <i class="fa-solid fa-wand-magic-sparkles"></i>
+        <p>Beschreibe, welche neuen Folien du brauchst.<br>Der Assistent plant sie im Stil deines Templates.</p>
+      </div>`;
+    document.getElementById('spec-panel').style.display='none';
+  } catch(err) {
+    toast('Fehler: '+err.message,'error');
+    document.getElementById('upload-progress').style.display='none';
+    document.getElementById('browse-btn').disabled=false;
+  } finally { setProgress(0,''); }
+}
+
+async function sendMessage() {
+  const inp=document.getElementById('chat-input'), text=inp.value.trim();
+  if (!text) return;
+  S.messages.push({role:'user',content:text});
+  addMsg('user',text); inp.value=''; inp.style.height='40px';
+  const btn=document.getElementById('send-btn'); btn.disabled=true;
+  addLoading();
+  try {
+    const res=await callAI(text);
+    document.getElementById('loading-msg')?.remove();
+    const reply=res.reply||'Hier ist der geplante Aufbau.';
+    S.messages.push({role:'assistant',content:reply});
+    addMsg('ai',reply);
+    if (res.spec?.slides?.length) { S.draftSpec=res.spec; renderSpec(); }
+  } catch(err) {
+    document.getElementById('loading-msg')?.remove();
+    addMsg('ai','KI-Fehler: '+err.message);
+  } finally { btn.disabled=false; }
+}
+
+async function generateAndDownload() {
+  if (!S.draftSpec?.slides?.length){toast('Kein Plan vorhanden','error');return;}
+  const btn=document.getElementById('generate-btn'), hint=document.getElementById('gen-hint');
+  btn.disabled=true; hint.textContent='Generiere…';
+  try {
+    const bytes=await generatePptx(S.entries, S.draftSpec.slides, S.analysis);
+    const blob=new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.presentationml.presentation'});
+    const url=URL.createObjectURL(blob), a=document.createElement('a');
+    a.href=url; a.download=S.filename.replace(/\.pptx$/i,'')+'_erweitert.pptx';
+    a.click(); URL.revokeObjectURL(url);
+    hint.textContent=S.draftSpec.slides.length+' Folie(n) hinzugefügt';
+    toast(S.draftSpec.slides.length+' neue Folie(n) generiert','success');
+  } catch(err) {
+    hint.textContent='Fehler — bitte erneut versuchen';
+    toast('Generierungsfehler: '+err.message,'error');
+  } finally { btn.disabled=false; }
+}
+
+// ── INIT ────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded',()=>{
+  const dropZone=document.getElementById('drop-zone');
+  const fileInput=document.getElementById('file-input');
+
+  document.getElementById('browse-btn').addEventListener('click',()=>fileInput.click());
+  fileInput.addEventListener('change',()=>fileInput.files[0]&&handleFile(fileInput.files[0]));
+
+  dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('over');});
+  dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('over'));
+  dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('over');const f=e.dataTransfer.files[0];if(f)handleFile(f);});
+
+  document.getElementById('new-upload-btn').addEventListener('click',()=>{
+    document.getElementById('tool-phase').hidden=true;
+    document.getElementById('upload-phase').style.display='flex';
+    document.getElementById('upload-progress').style.display='none';
+    document.getElementById('browse-btn').disabled=false;
+    fileInput.value='';
+    Object.assign(S,{file:null,analysis:null,entries:null,messages:[],draftSpec:null});
+  });
+
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-'+btn.dataset.tab)?.classList.add('active');
+    });
+  });
+
+  const chatIn=document.getElementById('chat-input');
+  document.getElementById('send-btn').addEventListener('click',sendMessage);
+  chatIn.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}});
+  chatIn.addEventListener('input',()=>{chatIn.style.height='40px';chatIn.style.height=Math.min(chatIn.scrollHeight,120)+'px';});
+
+  document.getElementById('clear-spec-btn').addEventListener('click',()=>{S.draftSpec=null;renderSpec();toast('Plan zurückgesetzt');});
+  document.getElementById('refine-btn').addEventListener('click',()=>{
+    document.querySelector('[data-tab="chat"]').click();
+    document.getElementById('chat-input').focus();
+  });
+  document.getElementById('generate-btn').addEventListener('click',generateAndDownload);
+});
+</script>
 </body>
 </html>

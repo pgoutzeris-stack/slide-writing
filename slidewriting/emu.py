@@ -1,6 +1,6 @@
 """English Metric Unit (EMU) conversions and geometry primitives.
 
-All DeckForge coordinates and sizes are integers in EMU:
+All Slide Writing coordinates and sizes are integers in EMU:
 1 inch = 914400 EMU, 1 cm = 360000 EMU, 1 pt = 12700 EMU.
 DrawingML font sizes are expressed in hundredths of a point
 (``sz="1800"`` means 18 pt); use :func:`hundredths_pt` for those.

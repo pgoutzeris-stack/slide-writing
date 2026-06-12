@@ -1,6 +1,6 @@
-# DeckForge
+# Slide Writing
 
-DeckForge is a self-built, zero-dependency PowerPoint engine for automated
+Slide Writing is a self-built, zero-dependency PowerPoint engine for automated
 consulting-deck creation. It reads `.pptx` templates as Office Open XML
 packages, extracts their design model, and writes new slides that reuse the
 original masters, layouts, theme colors, fonts, and placeholders.
@@ -27,7 +27,7 @@ opening PowerPoint.
 
 This is a V1 engineering baseline:
 
-- `deckforge/` contains the PPTX parser, model, builder, writer, component
+- `slidewriting/` contains the PPTX parser, model, builder, writer, component
   library, JSON spec renderer, and CLI.
 - `tests/` contains unit and end-to-end tests using `unittest`.
 - `examples/consulting_deck.json` is a ready-to-run consulting demo spec.
@@ -39,16 +39,23 @@ This is a V1 engineering baseline:
 Run the package directly from the repository root:
 
 ```bash
-python3 -m deckforge bootstrap --out out/template.pptx
-python3 -m deckforge inspect out/template.pptx
-python3 -m deckforge validate examples/consulting_deck.json
-python3 -m deckforge generate --spec examples/consulting_deck.json --out out/demo.pptx
+python3 -m slidewriting bootstrap --out out/template.pptx
+python3 -m slidewriting inspect out/template.pptx
+python3 -m slidewriting validate examples/consulting_deck.json
+python3 -m slidewriting demo --out out/showcase.pptx
+python3 -m slidewriting generate --spec examples/consulting_deck.json --out out/demo.pptx
+```
+
+After installation, use the branded CLI command:
+
+```bash
+slide-writing generate --spec examples/consulting_deck.json --out out/demo.pptx
 ```
 
 Use an existing corporate PowerPoint master as the design source:
 
 ```bash
-python3 -m deckforge generate \
+python3 -m slidewriting generate \
   --template path/to/company-master.pptx \
   --spec examples/consulting_deck.json \
   --out out/company-demo.pptx
@@ -57,7 +64,7 @@ python3 -m deckforge generate \
 ## Python API
 
 ```python
-from deckforge import Deck, build_from_spec
+from slidewriting import Deck, build_from_spec
 
 deck = Deck.create(accent="206EFB")
 slide = deck.add_slide("obj")
@@ -81,12 +88,12 @@ spec_deck.save("out/spec-demo.pptx")
 The consulting components are also available as an explicit module API:
 
 ```python
-from deckforge.components import add_agenda, add_kpi_row, add_waterfall
+from slidewriting.components import add_agenda, add_kpi_row, add_waterfall
 ```
 
 ## JSON Spec Slide Types
 
-DeckForge currently supports:
+Slide Writing currently supports:
 
 - `title`
 - `section`
@@ -101,7 +108,7 @@ DeckForge currently supports:
 - `blank`
 
 Unknown JSON keys are ignored for forward compatibility. Invalid required
-fields are reported with slide indexes by `deckforge validate`.
+fields are reported with slide indexes by `slide-writing validate`.
 
 ## Design Principles
 

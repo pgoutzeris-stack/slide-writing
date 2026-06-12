@@ -1,11 +1,11 @@
-"""Tests for deckforge.text: runs, paragraphs, text bodies, TextFrame."""
+"""Tests for slidewriting.text: runs, paragraphs, text bodies, TextFrame."""
 
 from __future__ import annotations
 
 import unittest
 
-from deckforge.errors import BuildError
-from deckforge.text import (
+from slidewriting.errors import BuildError
+from slidewriting.text import (
     ParaFormat,
     RunFormat,
     TextFrame,
@@ -13,7 +13,7 @@ from deckforge.text import (
     run_el,
     txbody_el,
 )
-from deckforge.xmlcore import find, findall, parse_xml, qn, serialize
+from slidewriting.xmlcore import find, findall, parse_xml, qn, serialize
 
 
 class TestRunEl(unittest.TestCase):

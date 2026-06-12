@@ -1,4 +1,4 @@
-"""Module entry point for ``python -m deckforge``."""
+"""Module entry point for ``python -m slidewriting``."""
 
 from __future__ import annotations
 

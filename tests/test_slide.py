@@ -1,4 +1,4 @@
-"""Tests for deckforge.slide: SlideBuilder and PlaceholderShape."""
+"""Tests for slidewriting.slide: SlideBuilder and PlaceholderShape."""
 
 from __future__ import annotations
 
@@ -7,13 +7,13 @@ import struct
 import tempfile
 import unittest
 
-from deckforge.emu import SLIDE_H_16_9, SLIDE_W_16_9, Box, pt
-from deckforge.errors import BuildError
-from deckforge.model import LayoutSpec, MasterSpec, PlaceholderSpec
-from deckforge.slide import PlaceholderShape, SlideBuilder
-from deckforge.text import RunFormat, TextFrame
-from deckforge.theme import ColorScheme, FontScheme, Theme
-from deckforge.xmlcore import el, find, findall, parse_xml, qn
+from slidewriting.emu import SLIDE_H_16_9, SLIDE_W_16_9, Box, pt
+from slidewriting.errors import BuildError
+from slidewriting.model import LayoutSpec, MasterSpec, PlaceholderSpec
+from slidewriting.slide import PlaceholderShape, SlideBuilder
+from slidewriting.text import RunFormat, TextFrame
+from slidewriting.theme import ColorScheme, FontScheme, Theme
+from slidewriting.xmlcore import el, find, findall, parse_xml, qn
 
 #: Minimal but valid PNG header: signature + IHDR chunk start with 100x50 px.
 PNG_100x50 = (

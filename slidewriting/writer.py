@@ -1,7 +1,7 @@
 """Valid mutation of presentation packages: slides, images, core properties.
 
 :class:`SlideWriter` implements the five-step "add one new slide" checklist
-from ARCHITECTURE.md section 1 against a live :class:`~deckforge.opc.Package`:
+from ARCHITECTURE.md section 1 against a live :class:`~slidewriting.opc.Package`:
 
 1. create the slide part under ``/ppt/slides/``,
 2. create its ``.rels`` (layout rel plus one image rel per picture),
@@ -9,7 +9,7 @@ from ARCHITECTURE.md section 1 against a live :class:`~deckforge.opc.Package`:
 4. add the ``RT_SLIDE`` relationship from ``presentation.xml``,
 5. append a ``<p:sldId>`` entry to ``p:sldIdLst`` in ``presentation.xml``.
 
-Images arrive from :class:`~deckforge.slide.SlideBuilder` as
+Images arrive from :class:`~slidewriting.slide.SlideBuilder` as
 ``pending_images`` — pairs of a temporary relationship token (``"img:N"``)
 and the raw blob. The writer registers each blob as a deduplicated media
 part, adds an ``RT_IMAGE`` relationship from the new slide part, and
@@ -196,7 +196,7 @@ class SlideWriter:
 
         Identical blobs (by SHA-256) are stored only once; repeated calls
         return the existing partname. The image format is sniffed via
-        :func:`deckforge.shapes.detect_image`, a ``<Default>`` content type
+        :func:`slidewriting.shapes.detect_image`, a ``<Default>`` content type
         is registered for the extension, and the partname is allocated as
         ``/ppt/media/imageN.<ext>`` via ``Package.next_partname``.
 
@@ -259,7 +259,7 @@ class SlideWriter:
 
 
 def set_core_properties(
-    package: Package, title: str, creator: str = "DeckForge"
+    package: Package, title: str, creator: str = "Slide Writing"
 ) -> None:
     """Write ``dc:title``, ``dc:creator``, and ``cp:lastModifiedBy``.
 
@@ -327,7 +327,7 @@ def set_app_properties(package: Package, slide_count: int, title: str) -> None:
         partname = _DEFAULT_APP_PARTNAME
     exists = package.has_part(partname)
     root = parse_xml(package.part(partname).blob) if exists else el("ep:Properties")
-    _ensure_app_child(root, "ep:Application").text = "DeckForge"
+    _ensure_app_child(root, "ep:Application").text = "Slide Writing"
     _ensure_app_child(root, "ep:Slides").text = str(slide_count)
     _set_titles_of_parts(root, title)
     blob = serialize(root)

@@ -1,12 +1,12 @@
-"""Tests for deckforge.theme."""
+"""Tests for slidewriting.theme."""
 
 from __future__ import annotations
 
 import unittest
 import xml.etree.ElementTree as ET
 
-from deckforge.errors import BuildError, ParseError
-from deckforge.theme import (
+from slidewriting.errors import BuildError, ParseError
+from slidewriting.theme import (
     SCHEME_SLOTS,
     ColorResolver,
     ColorScheme,
@@ -18,7 +18,7 @@ from deckforge.theme import (
     scheme_fill,
     srgb_fill,
 )
-from deckforge.xmlcore import find, get, qn, serialize
+from slidewriting.xmlcore import find, get, qn, serialize
 
 #: Realistic hand-written theme part: two a:sysClr slots (dk1/lt1, like every
 #: Office theme), lowercase hex in dk2 (must be normalized), extra fontScheme

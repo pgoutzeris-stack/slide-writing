@@ -1,6 +1,6 @@
-"""Exception hierarchy for DeckForge.
+"""Exception hierarchy for Slide Writing.
 
-All errors raised by DeckForge derive from :class:`DeckForgeError`, so callers
+All errors raised by Slide Writing derive from :class:`SlideWritingError`, so callers
 can catch a single base class. Subclasses signal the layer where the problem
 occurred (package, template parsing, slide building, JSON spec).
 """
@@ -8,21 +8,21 @@ occurred (package, template parsing, slide building, JSON spec).
 from __future__ import annotations
 
 
-class DeckForgeError(Exception):
-    """Base class for every error raised by DeckForge."""
+class SlideWritingError(Exception):
+    """Base class for every error raised by Slide Writing."""
 
 
-class PackageError(DeckForgeError):
+class PackageError(SlideWritingError):
     """ZIP/OPC-level problem (bad zip, missing part, malformed rels/content types)."""
 
 
-class ParseError(DeckForgeError):
+class ParseError(SlideWritingError):
     """Malformed or unsupported template content (XML, theme, master, layout)."""
 
 
-class BuildError(DeckForgeError):
+class BuildError(SlideWritingError):
     """Invalid build-time input while constructing slides, shapes, or media."""
 
 
-class SpecError(DeckForgeError):
+class SpecError(SlideWritingError):
     """Invalid JSON deck specification."""

@@ -1,4 +1,4 @@
-"""Tests for deckforge.opc."""
+"""Tests for slidewriting.opc."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ import io
 import unittest
 import zipfile
 
-from deckforge.errors import PackageError
-from deckforge.opc import (
+from slidewriting.errors import PackageError
+from slidewriting.opc import (
     CT_PNG,
     CT_PRESENTATION,
     CT_RELS,

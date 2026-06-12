@@ -5,7 +5,7 @@
 ``presentation.xml`` (+ rels), presProps, viewProps, tableStyles, a full
 theme (color/font/format scheme), one slide master (color map, placeholders,
 text styles), and the six standard layouts from :data:`DEFAULT_LAYOUTS` —
-with **no slides**. The resulting :class:`~deckforge.opc.Package` opens
+with **no slides**. The resulting :class:`~slidewriting.opc.Package` opens
 cleanly in PowerPoint and serves as the default design for decks created
 without an external template.
 
@@ -109,7 +109,7 @@ _BODY_LEVELS: tuple[tuple[int, str, int], ...] = (
 def create_default_template(
     accent: str = "206EFB",
     *,
-    name: str = "DeckForge",
+    name: str = "Slide Writing",
     major_font: str = "Calibri Light",
     minor_font: str = "Calibri",
 ) -> Package:
@@ -123,7 +123,7 @@ def create_default_template(
         minor_font: Theme minor latin typeface (body text).
 
     Returns:
-        A fully wired :class:`~deckforge.opc.Package` ready to save or to
+        A fully wired :class:`~slidewriting.opc.Package` ready to save or to
         extend with slides.
 
     Raises:
@@ -205,8 +205,8 @@ def _core_xml(name: str) -> bytes:
     """Build ``docProps/core.xml`` with fixed, deterministic timestamps."""
     root = el("cp:coreProperties")
     sub(root, "dcterms:created", {"xsi:type": "dcterms:W3CDTF"}, text=_FIXED_TIMESTAMP)
-    sub(root, "dc:creator", text="DeckForge")
-    sub(root, "cp:lastModifiedBy", text="DeckForge")
+    sub(root, "dc:creator", text="Slide Writing")
+    sub(root, "cp:lastModifiedBy", text="Slide Writing")
     sub(root, "dcterms:modified", {"xsi:type": "dcterms:W3CDTF"}, text=_FIXED_TIMESTAMP)
     sub(root, "dc:title", text=name)
     return serialize(root)
@@ -215,7 +215,7 @@ def _core_xml(name: str) -> bytes:
 def _app_xml(name: str) -> bytes:
     """Build a minimal ``docProps/app.xml`` (extended properties)."""
     root = el("ep:Properties")
-    sub(root, "ep:Application", text="DeckForge")
+    sub(root, "ep:Application", text="Slide Writing")
     sub(root, "ep:PresentationFormat", text="Breitbild")
     sub(root, "ep:Slides", text="0")
     pairs = sub(root, "ep:HeadingPairs")

@@ -1,12 +1,12 @@
-"""Tests for deckforge.xmlcore."""
+"""Tests for slidewriting.xmlcore."""
 
 from __future__ import annotations
 
 import unittest
 import xml.etree.ElementTree as ET
 
-from deckforge.errors import DeckForgeError, ParseError
-from deckforge.xmlcore import NSMAP, el, find, findall, get, parse_xml, qn, serialize, sub
+from slidewriting.errors import SlideWritingError, ParseError
+from slidewriting.xmlcore import NSMAP, el, find, findall, get, parse_xml, qn, serialize, sub
 
 A_URI = "http://schemas.openxmlformats.org/drawingml/2006/main"
 P_URI = "http://schemas.openxmlformats.org/presentationml/2006/main"
@@ -30,7 +30,7 @@ class TestQn(unittest.TestCase):
         self.assertEqual(qn(clark), clark)
 
     def test_unknown_prefix_raises(self):
-        with self.assertRaises(DeckForgeError):
+        with self.assertRaises(SlideWritingError):
             qn("nope:thing")
 
     def test_all_nsmap_prefixes_expand(self):

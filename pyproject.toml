@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "deckforge"
+name = "slide-writing"
 version = "1.0.0"
 description = "Zero-dependency PowerPoint parser and generator for consulting decks"
 readme = "README.md"
@@ -24,7 +24,7 @@ classifiers = [
 ]
 
 [project.scripts]
-deckforge = "deckforge.cli:main"
+slide-writing = "slidewriting.cli:main"
 
 [tool.setuptools]
-packages = ["deckforge"]
+packages = ["slidewriting"]

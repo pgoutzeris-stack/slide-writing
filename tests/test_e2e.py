@@ -4,7 +4,7 @@ import os
 import tempfile
 import unittest
 
-from deckforge import Deck, build_from_spec
+from slidewriting import Deck, build_from_spec
 
 
 class TestEndToEnd(unittest.TestCase):
@@ -12,7 +12,7 @@ class TestEndToEnd(unittest.TestCase):
         spec = {
             "accent": "206EFB",
             "title": "E2E Consulting Deck",
-            "author": "DeckForge Tests",
+            "author": "Slide Writing Tests",
             "slides": [
                 {
                     "type": "title",
@@ -70,7 +70,7 @@ class TestEndToEnd(unittest.TestCase):
                 {
                     "type": "comparison",
                     "title": "Decision",
-                    "options": ["Manual", "DeckForge"],
+                    "options": ["Manual", "Slide Writing"],
                     "criteria": ["Fidelity", "Speed"],
                     "cells": [[0.5, 1], [0.25, 1]],
                 },
@@ -83,7 +83,7 @@ class TestEndToEnd(unittest.TestCase):
             ],
         }
         with tempfile.TemporaryDirectory() as tmp:
-            out = os.path.join(tmp, "deckforge-e2e.pptx")
+            out = os.path.join(tmp, "slidewriting-e2e.pptx")
             deck = build_from_spec(spec)
             deck.save(out)
 

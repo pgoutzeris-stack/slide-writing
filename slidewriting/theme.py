@@ -1,4 +1,4 @@
-"""Theme parsing and theme-aware color handling for DeckForge.
+"""Theme parsing and theme-aware color handling for Slide Writing.
 
 This module reads ``ppt/theme/theme1.xml`` into a small design model
 (:class:`Theme` with :class:`ColorScheme` and :class:`FontScheme`), resolves

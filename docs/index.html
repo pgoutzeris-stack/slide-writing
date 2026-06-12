@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Slide Writing</title>
+  <style>
+    :root {
+      --ink: #0f172a;
+      --muted: #475569;
+      --line: #dbe3ef;
+      --brand: #206efb;
+      --brand-dark: #165fd9;
+      --accent: #0f766e;
+      --bg: #f7f9fc;
+      --panel: #ffffff;
+      --soft: #eef5ff;
+      --code: #111827;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: linear-gradient(180deg, #f8fbff 0%, #eef3f9 100%);
+    }
+
+    .shell { max-width: 1180px; margin: 0 auto; padding: 32px 24px 56px; }
+    header {
+      min-height: 72vh;
+      display: grid;
+      grid-template-columns: minmax(0, 1.04fr) minmax(320px, 0.96fr);
+      align-items: center;
+      gap: 48px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      color: var(--brand-dark);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+
+    h1 { font-size: clamp(44px, 7vw, 84px); line-height: 0.95; margin: 0 0 20px; letter-spacing: 0; }
+    h2 { font-size: 30px; margin: 0 0 14px; letter-spacing: 0; }
+    h3 { font-size: 18px; margin: 0 0 8px; letter-spacing: 0; }
+    p { color: var(--muted); font-size: 17px; line-height: 1.7; margin: 0; }
+
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 0 18px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      color: var(--ink);
+      text-decoration: none;
+      font-weight: 750;
+      background: #fff;
+    }
+
+    .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+    .terminal {
+      background: var(--code);
+      color: #e5e7eb;
+      border-radius: 8px;
+      padding: 22px;
+      box-shadow: 0 22px 60px rgba(15, 23, 42, 0.18);
+      overflow: hidden;
+    }
+
+    .terminal-bar { display: flex; gap: 7px; margin-bottom: 18px; }
+    .dot { width: 11px; height: 11px; border-radius: 50%; background: #ef4444; }
+    .dot:nth-child(2) { background: #f59e0b; }
+    .dot:nth-child(3) { background: #22c55e; }
+    pre { margin: 0; white-space: pre-wrap; line-height: 1.65; font-size: 14px; }
+    code { font-family: "SFMono-Regular", Consolas, monospace; }
+    .prompt { color: #93c5fd; }
+    .ok { color: #86efac; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+      padding-top: 42px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 22px;
+      min-height: 172px;
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.05);
+    }
+
+    .card strong {
+      display: inline-flex;
+      color: var(--accent);
+      margin-bottom: 14px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .band {
+      margin-top: 42px;
+      background: var(--soft);
+      border: 1px solid #cfe0ff;
+      border-radius: 8px;
+      padding: 28px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 24px;
+      align-items: center;
+    }
+
+    @media (max-width: 860px) {
+      header { grid-template-columns: 1fr; min-height: auto; padding: 48px 0; }
+      .grid { grid-template-columns: 1fr; }
+      .band { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <section>
+        <span class="eyebrow">ROOTS PowerPoint Automation</span>
+        <h1>Slide Writing</h1>
+        <p>Eine eigene, zero-dependency PPTX-Engine, die bestehende PowerPoint-Master ausliest und neue Consulting-Folien im selben Design erzeugt.</p>
+        <div class="actions">
+          <a class="btn primary" href="https://github.com/pgoutzeris-stack/slide-writing">GitHub Repository</a>
+          <a class="btn" href="./ZIELBILD.md">Zielbild lesen</a>
+        </div>
+      </section>
+      <aside class="terminal" aria-label="Slide Writing CLI Beispiel">
+        <div class="terminal-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+        <pre><code><span class="prompt">$</span> slide-writing validate deck.json
+<span class="ok">OK</span>
+
+<span class="prompt">$</span> slide-writing generate \
+  --template master.pptx \
+  --spec deck.json \
+  --out consulting-deck.pptx
+
+<span class="ok">consulting-deck.pptx</span></code></pre>
+      </aside>
+    </header>
+
+    <section class="grid" aria-label="Kernfunktionen">
+      <article class="card">
+        <strong>Parser</strong>
+        <h3>Master verstehen</h3>
+        <p>Themes, Slide Master, Layouts, Platzhalter, Folieninventar und Relationships werden direkt aus OOXML gelesen.</p>
+      </article>
+      <article class="card">
+        <strong>Builder</strong>
+        <h3>Folien erzeugen</h3>
+        <p>Neue Slides referenzieren Original-Layouts und erzeugen native, editierbare PowerPoint-Shapes, Tabellen, Text und Bilder.</p>
+      </article>
+      <article class="card">
+        <strong>Consulting</strong>
+        <h3>Bausteine nutzen</h3>
+        <p>Agenda, KPI-Kacheln, Harvey Balls, Wasserfall, Balken, Timelines, Vergleichsmatrizen und Callouts sind eingebaut.</p>
+      </article>
+    </section>
+
+    <section class="band">
+      <div>
+        <h2>Automatisierung ohne externe Runtime</h2>
+        <p>Slide Writing läuft mit der Python-Standardbibliothek und ist damit reproduzierbar, prüfbar und exakt auf den ROOTS-Folienbau zugeschnitten.</p>
+      </div>
+      <a class="btn primary" href="https://github.com/pgoutzeris-stack/slide-writing/blob/main/examples/consulting_deck.json">Demo-Spec ansehen</a>
+    </section>
+  </div>
+</body>
+</html>

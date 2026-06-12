@@ -1,6 +1,6 @@
 {
   "accent": "206EFB",
-  "title": "DeckForge Consulting Demo",
+  "title": "Slide Writing Consulting Demo",
   "author": "ROOTS Brand Strategy Consultants GmbH",
   "slides": [
     {
@@ -108,7 +108,7 @@
       "options": [
         "Manual build",
         "Generic library",
-        "DeckForge"
+        "Slide Writing"
       ],
       "criteria": [
         "Design fidelity",

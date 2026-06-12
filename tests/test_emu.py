@@ -1,10 +1,10 @@
-"""Tests for deckforge.emu."""
+"""Tests for slidewriting.emu."""
 
 from __future__ import annotations
 
 import unittest
 
-from deckforge.emu import (
+from slidewriting.emu import (
     EMU_PER_CM,
     EMU_PER_INCH,
     EMU_PER_PT,

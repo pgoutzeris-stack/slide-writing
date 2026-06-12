@@ -3,8 +3,8 @@
 :class:`TemplateParser` walks ``presentation.xml`` (slide size, master list,
 slide list), follows the relationship graph to masters, layouts, themes, and
 slides, and returns a fully populated
-:class:`~deckforge.model.TemplateInfo`. Missing optional bits are tolerated;
-:class:`~deckforge.errors.ParseError` is raised only for structurally
+:class:`~slidewriting.model.TemplateInfo`. Missing optional bits are tolerated;
+:class:`~slidewriting.errors.ParseError` is raised only for structurally
 unusable files.
 """
 
@@ -90,7 +90,7 @@ def effective_box(
 
 
 class TemplateParser:
-    """Parses an opened :class:`~deckforge.opc.Package` into a design model."""
+    """Parses an opened :class:`~slidewriting.opc.Package` into a design model."""
 
     def __init__(self, package: Package) -> None:
         """Bind the parser to an already opened package."""
@@ -99,7 +99,7 @@ class TemplateParser:
     def parse(self) -> TemplateInfo:
         """Parse the package and return the complete :class:`TemplateInfo`.
 
-        Raises :class:`~deckforge.errors.ParseError` for structurally
+        Raises :class:`~slidewriting.errors.ParseError` for structurally
         unusable files (main part is not a presentation, no slide masters,
         dangling relationship references).
         """

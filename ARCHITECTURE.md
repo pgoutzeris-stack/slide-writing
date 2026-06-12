@@ -1,7 +1,7 @@
-# DeckForge — Architecture & Module Contracts
+# Slide Writing — Architecture & Module Contracts
 
 This document is the **single source of truth** for all implementers. Code written for
-DeckForge MUST follow the contracts below exactly (module names, class names, signatures,
+Slide Writing MUST follow the contracts below exactly (module names, class names, signatures,
 dataclass fields), because modules are implemented in parallel against this spec.
 
 ## 0. Ground rules
@@ -12,7 +12,7 @@ dataclass fields), because modules are implemented in parallel against this spec
   **Nothing else. No pip packages, ever.**
 - Every module starts with `from __future__ import annotations`.
 - Full type hints, docstrings on every public symbol. Library code never prints.
-- Errors: raise the exceptions from `deckforge.errors` with helpful messages.
+- Errors: raise the exceptions from `slidewriting.errors` with helpful messages.
 - All coordinates/sizes in **EMU** (int). Public helpers accept pt/cm/inches via `emu.py`.
 - All XML creation goes through `xmlcore` helpers (`qn`, `el`, `find`, `findall`, `serialize`).
   Never hand-concatenate XML strings in builder code (bootstrap.py is the only exception:
@@ -200,7 +200,7 @@ or a thin rect), `donut`, `blockArc`, `homePlate` (pentagon arrow).
 ## 2. Repository layout & file ownership
 
 ```
-deckforge/                  package (flat modules)
+slidewriting/                  package (flat modules)
   __init__.py               [F]  __version__ = "1.0.0" (final exports added by integrator)
   errors.py                 [F]
   emu.py                    [F]
@@ -233,11 +233,11 @@ write against the contracts; the integrator wires everything.
 ### 3.1 `errors.py` [F]
 
 ```python
-class DeckForgeError(Exception): ...
-class PackageError(DeckForgeError): ...   # zip/opc level problems
-class ParseError(DeckForgeError): ...     # malformed/unsupported template
-class BuildError(DeckForgeError): ...     # invalid build-time input
-class SpecError(DeckForgeError): ...      # invalid JSON spec
+class SlideWritingError(Exception): ...
+class PackageError(SlideWritingError): ...   # zip/opc level problems
+class ParseError(SlideWritingError): ...     # malformed/unsupported template
+class BuildError(SlideWritingError): ...     # invalid build-time input
+class SpecError(SlideWritingError): ...      # invalid JSON spec
 ```
 
 ### 3.2 `emu.py` [F]
@@ -610,13 +610,13 @@ class SlideWriter:
         # dedups by sha256 → existing media partname; detects ext via shapes.detect_image;
         # ensures Default content type for ext; returns media partname
     def _next_slide_id(self) -> int
-def set_core_properties(package: Package, title: str, creator: str = "DeckForge") -> None
+def set_core_properties(package: Package, title: str, creator: str = "Slide Writing") -> None
 ```
 
 ### 3.14 `bootstrap.py` [P6]
 
 ```python
-def create_default_template(accent: str = "206EFB", *, name: str = "DeckForge",
+def create_default_template(accent: str = "206EFB", *, name: str = "Slide Writing",
                             major_font: str = "Calibri Light",
                             minor_font: str = "Calibri") -> Package
 DEFAULT_LAYOUTS = [("Titelfolie","title"), ("Titel und Inhalt","obj"),
@@ -685,10 +685,10 @@ Spec format (document in docstring; raise SpecError with slide index on problems
 ### 3.17 `cli.py` + `__main__.py` [P7]
 
 ```
-python3 -m deckforge inspect <file.pptx> [--json]
-python3 -m deckforge generate --spec spec.json [--template t.pptx] --out out.pptx
-python3 -m deckforge bootstrap --out template.pptx [--accent HEX]
-python3 -m deckforge demo --out demo.pptx            # built-in showcase spec, all components
+python3 -m slidewriting inspect <file.pptx> [--json]
+python3 -m slidewriting generate --spec spec.json [--template t.pptx] --out out.pptx
+python3 -m slidewriting bootstrap --out template.pptx [--accent HEX]
+python3 -m slidewriting demo --out demo.pptx            # built-in showcase spec, all components
 ```
 `main(argv=None) -> int`; errors print to stderr, exit 1; never traceback for user errors.
 

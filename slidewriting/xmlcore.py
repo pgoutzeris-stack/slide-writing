@@ -1,6 +1,6 @@
-"""Namespace-aware XML helpers for all DeckForge modules.
+"""Namespace-aware XML helpers for all Slide Writing modules.
 
-Every piece of XML in DeckForge is created, queried, and serialized through
+Every piece of XML in Slide Writing is created, queried, and serialized through
 the helpers in this module so that namespace handling is uniform. The
 canonical OOXML prefixes from :data:`NSMAP` are registered with
 :mod:`xml.etree.ElementTree` at import time, which makes serialized output
@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 
-from .errors import DeckForgeError, ParseError
+from .errors import SlideWritingError, ParseError
 
-#: Canonical namespace prefixes used throughout DeckForge (see ARCHITECTURE.md §1).
+#: Canonical namespace prefixes used throughout Slide Writing (see ARCHITECTURE.md §1).
 NSMAP: dict[str, str] = {
     "a": "http://schemas.openxmlformats.org/drawingml/2006/main",
     "p": "http://schemas.openxmlformats.org/presentationml/2006/main",
@@ -39,7 +39,7 @@ def qn(tag: str) -> str:
 
     Works for element tags and attribute names alike (e.g. ``"r:id"``).
     Names without a colon, and names already in Clark notation, are returned
-    unchanged. Raises :class:`DeckForgeError` for unknown prefixes.
+    unchanged. Raises :class:`SlideWritingError` for unknown prefixes.
     """
     if tag.startswith("{") or ":" not in tag:
         return tag
@@ -47,7 +47,7 @@ def qn(tag: str) -> str:
     try:
         uri = NSMAP[prefix]
     except KeyError:
-        raise DeckForgeError(
+        raise SlideWritingError(
             f"Unknown namespace prefix {prefix!r} in {tag!r}; "
             f"known prefixes: {', '.join(sorted(NSMAP))}"
         ) from None

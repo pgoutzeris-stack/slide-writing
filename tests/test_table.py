@@ -1,6 +1,6 @@
-"""Unit tests for deckforge.table (graphicFrame table builder).
+"""Unit tests for slidewriting.table (graphicFrame table builder).
 
-deckforge.table imports deckforge.text and deckforge.theme, which are owned
+slidewriting.table imports slidewriting.text and slidewriting.theme, which are owned
 by other implementers and may not exist yet. To keep these tests runnable in
 isolation, minimal contract-compliant stand-ins (per ARCHITECTURE.md sections
 3.5 and 3.8) are registered in ``sys.modules`` *only* when the real modules
@@ -19,9 +19,9 @@ from dataclasses import dataclass
 
 import xml.etree.ElementTree as ET
 
-from deckforge.emu import Box, pt
-from deckforge.errors import BuildError
-from deckforge.xmlcore import el, find, findall, qn, sub
+from slidewriting.emu import Box, pt
+from slidewriting.errors import BuildError
+from slidewriting.xmlcore import el, find, findall, qn, sub
 
 _HEX_RE = re.compile(r"#?[0-9A-Fa-f]{6}")
 
@@ -44,22 +44,22 @@ def _stub_fill_for(color: str, alpha_pct: "int | None" = None) -> ET.Element:
 
 
 def _install_sibling_stubs() -> None:
-    """Register stand-ins for deckforge.theme / deckforge.text if absent."""
-    import deckforge
+    """Register stand-ins for slidewriting.theme / slidewriting.text if absent."""
+    import slidewriting
 
     try:
-        importlib.import_module("deckforge.theme")
+        importlib.import_module("slidewriting.theme")
     except ImportError:
-        theme = types.ModuleType("deckforge.theme")
+        theme = types.ModuleType("slidewriting.theme")
         theme.color_el = _stub_color_el
         theme.fill_for = _stub_fill_for
-        sys.modules["deckforge.theme"] = theme
-        deckforge.theme = theme
+        sys.modules["slidewriting.theme"] = theme
+        slidewriting.theme = theme
 
     try:
-        importlib.import_module("deckforge.text")
+        importlib.import_module("slidewriting.text")
     except ImportError:
-        text = types.ModuleType("deckforge.text")
+        text = types.ModuleType("slidewriting.text")
 
         @dataclass
         class RunFormat:  # contract: section 3.8
@@ -129,13 +129,13 @@ def _install_sibling_stubs() -> None:
         text.run_el = run_el
         text.para_el = para_el
         text.txbody_el = txbody_el
-        sys.modules["deckforge.text"] = text
-        deckforge.text = text
+        sys.modules["slidewriting.text"] = text
+        slidewriting.text = text
 
 
 _install_sibling_stubs()
 
-from deckforge.table import TableStyle, table_el  # noqa: E402
+from slidewriting.table import TableStyle, table_el  # noqa: E402
 
 BOX = Box(914400, 914400, 9144000, 3429000)
 

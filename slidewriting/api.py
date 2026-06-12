@@ -1,13 +1,13 @@
-"""High-level facade for DeckForge: the :class:`Deck` class.
+"""High-level facade for Slide Writing: the :class:`Deck` class.
 
 A :class:`Deck` wraps an OPC package plus its parsed design model
-(:class:`~deckforge.model.TemplateInfo`) and offers the three core
+(:class:`~slidewriting.model.TemplateInfo`) and offers the three core
 operations of the library:
 
 * ``Deck.open(path)`` — load an existing ``.pptx`` template,
 * ``Deck.create()`` — bootstrap a clean default template from scratch,
 * ``deck.add_slide(...)`` / ``deck.save(path)`` — queue new slides built
-  with :class:`~deckforge.slide.SlideBuilder` and flush them into the
+  with :class:`~slidewriting.slide.SlideBuilder` and flush them into the
   package on save.
 
 Slides are *queued*: ``add_slide`` returns a builder immediately and only
@@ -32,7 +32,7 @@ from .xmlcore import parse_xml
 __all__ = ["Deck", "DEFAULT_DECK_TITLE"]
 
 #: Core-properties title used when no deck title has been set.
-DEFAULT_DECK_TITLE = "DeckForge Präsentation"
+DEFAULT_DECK_TITLE = "Slide Writing Präsentation"
 
 
 class Deck:
@@ -55,11 +55,11 @@ class Deck:
     def open(cls, path: Union[str, os.PathLike, io.BytesIO]) -> "Deck":
         """Open an existing ``.pptx`` file (or file-like object) as a deck.
 
-        The package is read via :meth:`deckforge.opc.Package.open` and its
+        The package is read via :meth:`slidewriting.opc.Package.open` and its
         design model is parsed with
-        :class:`~deckforge.parser.TemplateParser`. Raises
-        :class:`~deckforge.errors.PackageError` or
-        :class:`~deckforge.errors.ParseError` for unusable files.
+        :class:`~slidewriting.parser.TemplateParser`. Raises
+        :class:`~slidewriting.errors.PackageError` or
+        :class:`~slidewriting.errors.ParseError` for unusable files.
         """
         package = Package.open(path)
         info = TemplateParser(package).parse()
@@ -72,7 +72,7 @@ class Deck:
         ``accent`` is the ``accent1`` theme color as ``"RRGGBB"`` hex;
         additional keyword arguments (``name``, ``major_font``,
         ``minor_font``) are forwarded to
-        :func:`deckforge.bootstrap.create_default_template`.
+        :func:`slidewriting.bootstrap.create_default_template`.
         """
         from .bootstrap import create_default_template  # deferred: sibling module
 
@@ -95,8 +95,8 @@ class Deck:
     def layout(self, query: Union[str, int]) -> LayoutSpec:
         """Find a layout by index, name, type, or name substring.
 
-        See :meth:`deckforge.model.TemplateInfo.find_layout`; raises
-        :class:`~deckforge.errors.ParseError` listing the available layouts
+        See :meth:`slidewriting.model.TemplateInfo.find_layout`; raises
+        :class:`~slidewriting.errors.ParseError` listing the available layouts
         when nothing matches.
         """
         return self.info.find_layout(query)
@@ -126,7 +126,7 @@ class Deck:
     def add_slide(
         self, layout: Union[str, int, LayoutSpec, None] = None
     ) -> SlideBuilder:
-        """Queue a new slide and return its :class:`~deckforge.slide.SlideBuilder`.
+        """Queue a new slide and return its :class:`~slidewriting.slide.SlideBuilder`.
 
         ``layout`` selects the slide layout: a :class:`LayoutSpec`, a layout
         query (name, type, substring, or index — see :meth:`layout`), or
@@ -177,7 +177,7 @@ class Deck:
         set_core_properties(
             self.package,
             title=self._title or DEFAULT_DECK_TITLE,
-            creator=self._author or "DeckForge",
+            creator=self._author or "Slide Writing",
         )
         set_app_properties(
             self.package,

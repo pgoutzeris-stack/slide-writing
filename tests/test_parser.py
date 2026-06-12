@@ -1,9 +1,9 @@
-"""Tests for deckforge.parser and deckforge.model.
+"""Tests for slidewriting.parser and slidewriting.model.
 
 A minimal but complete template package (presentation + 1 master + 2 layouts
 + theme + 1 slide, with correct rels and content types) is hand-built
-in memory via the :class:`deckforge.opc.Package` APIs and raw XML strings,
-then parsed with :class:`deckforge.parser.TemplateParser`.
+in memory via the :class:`slidewriting.opc.Package` APIs and raw XML strings,
+then parsed with :class:`slidewriting.parser.TemplateParser`.
 """
 
 from __future__ import annotations
@@ -11,10 +11,10 @@ from __future__ import annotations
 import io
 import unittest
 
-from deckforge.emu import SLIDE_H_16_9, SLIDE_W_16_9, Box
-from deckforge.errors import ParseError
-from deckforge.model import LayoutSpec, MasterSpec, TemplateInfo
-from deckforge.opc import (
+from slidewriting.emu import SLIDE_H_16_9, SLIDE_W_16_9, Box
+from slidewriting.errors import ParseError
+from slidewriting.model import LayoutSpec, MasterSpec, TemplateInfo
+from slidewriting.opc import (
     CT_PRESENTATION,
     CT_SLIDE,
     CT_SLIDE_LAYOUT,
@@ -27,14 +27,14 @@ from deckforge.opc import (
     RT_THEME,
     Package,
 )
-from deckforge.parser import (
+from slidewriting.parser import (
     TemplateParser,
     effective_box,
     extract_placeholders,
     slide_title_text,
 )
-from deckforge.theme import ColorResolver
-from deckforge.xmlcore import find, parse_xml
+from slidewriting.theme import ColorResolver
+from slidewriting.xmlcore import find, parse_xml
 
 _NS = (
     'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '

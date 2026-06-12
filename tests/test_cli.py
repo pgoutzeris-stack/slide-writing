@@ -7,8 +7,8 @@ import os
 import tempfile
 import unittest
 
-from deckforge import Deck
-from deckforge.cli import main
+from slidewriting import Deck
+from slidewriting.cli import main
 
 
 def _run_cli(argv: list[str]) -> tuple[int, str, str]:
@@ -98,6 +98,19 @@ class TestCli(unittest.TestCase):
         info = json.loads(stdout)
         self.assertEqual(len(info["slides"]), 2)
         self.assertEqual(info["slides"][0]["title"], "CLI Title")
+
+    def test_demo_generates_showcase_deck(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "showcase.pptx")
+            code, stdout, stderr = _run_cli(["demo", "--out", out])
+            self.assertEqual((code, stderr), (0, ""))
+            self.assertTrue(os.path.exists(stdout.strip()))
+
+            reopened = Deck.open(out)
+            info = reopened.inspect()
+
+        self.assertGreaterEqual(len(info["slides"]), 8)
+        self.assertEqual(info["slides"][0]["title"], "Market Automation Strategy")
 
     def test_app_properties_slide_count_is_updated(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

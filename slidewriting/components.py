@@ -1,7 +1,7 @@
 """Consulting component library: theme-aware building blocks for slides.
 
 Every function in this module takes a live
-:class:`~deckforge.slide.SlideBuilder` and composes native PowerPoint
+:class:`~slidewriting.slide.SlideBuilder` and composes native PowerPoint
 primitives (rectangles, ellipses, chevrons, pies, connectors, textboxes)
 into consulting-grade components: agenda, KPI tiles, harvey balls,
 waterfall bridges, bar/column charts, chevron timelines, traffic lights,

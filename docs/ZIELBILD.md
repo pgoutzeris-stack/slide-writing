@@ -1,4 +1,4 @@
-# ZIELBILD — DeckForge
+# ZIELBILD — Slide Writing
 
 **PowerPoint-Automatisierung in Consulting-Qualität. Komplett selbst gebaut. Null externe Abhängigkeiten.**
 
@@ -8,7 +8,7 @@ Stand: 12. Juni 2026 · Eigentümer: Pano Goutzeris (ROOTS Brand Strategy Consul
 
 ## 1. Vision
 
-DeckForge ist eine eigenentwickelte PowerPoint-Engine, die jede bestehende `.pptx`-Datei
+Slide Writing ist eine eigenentwickelte PowerPoint-Engine, die jede bestehende `.pptx`-Datei
 (insbesondere Firmen-Master und Templates) vollständig einlesen, ihr Design verstehen und
 auf dieser Basis **beliebig viele neue Folien in exakt demselben Design** erzeugen kann —
 programmatisch, reproduzierbar und ohne dass PowerPoint dafür geöffnet werden muss.
@@ -36,7 +36,7 @@ Lizenz- oder Versionsrisiken Dritter.
 
 ### 3.1 Template-Analyse (Parser)
 
-DeckForge öffnet jede valide `.pptx`-Datei und extrahiert ihre komplette Designstruktur:
+Slide Writing öffnet jede valide `.pptx`-Datei und extrahiert ihre komplette Designstruktur:
 
 - **Paket-Ebene:** ZIP-Container, Content Types, Relationships, alle Parts (OPC-Standard).
 - **Theme:** Farbschema (dk1/lt1/dk2/lt2, accent1–6, hlink), Schriftschema (Major/Minor
@@ -97,15 +97,15 @@ PowerPoint-Shapes gebaut (dadurch nachträglich voll editierbar):
    deck.save("ergebnis.pptx")
    ```
 2. **JSON-Spezifikation** — deklarativ: Ein JSON beschreibt das ganze Deck
-   (Folientypen, Inhalte, Daten); DeckForge rendert es gegen jedes Template.
+   (Folientypen, Inhalte, Daten); Slide Writing rendert es gegen jedes Template.
 3. **CLI** — vollautomatisch und pipeline-fähig:
    ```bash
-   python3 -m deckforge inspect master.pptx
-   python3 -m deckforge generate --template master.pptx --spec deck.json --out out.pptx
-   python3 -m deckforge bootstrap --out template.pptx   # eigenes Default-Template
+   python3 -m slidewriting inspect master.pptx
+   python3 -m slidewriting generate --template master.pptx --spec deck.json --out out.pptx
+   python3 -m slidewriting bootstrap --out template.pptx   # eigenes Default-Template
    ```
-   Damit ist DeckForge der Renderer-Endpunkt jeder Automationskette (z. B. LLM erzeugt
-   die JSON-Spec → DeckForge erzeugt das fertige Deck im Firmendesign).
+   Damit ist Slide Writing der Renderer-Endpunkt jeder Automationskette (z. B. LLM erzeugt
+   die JSON-Spec → Slide Writing erzeugt das fertige Deck im Firmendesign).
 
 ## 4. Architekturprinzipien
 
@@ -119,7 +119,7 @@ PowerPoint-Shapes gebaut (dadurch nachträglich voll editierbar):
    erhalten; es wird nur ergänzt, was für neue Folien nötig ist.
 4. **Determinismus:** gleicher Input → byte-stabil gleicher Output (testbar, diffbar).
 5. **Theme-first:** keine hartcodierten Farben/Schriften in generierten Inhalten.
-6. **Editierbarkeit:** alles, was DeckForge erzeugt, ist in PowerPoint normal anklick-
+6. **Editierbarkeit:** alles, was Slide Writing erzeugt, ist in PowerPoint normal anklick-
    und änderbar (native Shapes, echte Platzhalter, echte Tabellen).
 
 ## 5. Qualitätskriterien (Definition of Done)

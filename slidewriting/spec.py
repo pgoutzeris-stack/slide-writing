@@ -1,6 +1,6 @@
 """JSON deck specification engine: declarative deck building.
 
-A *spec* is a plain JSON object describing a whole deck; DeckForge renders
+A *spec* is a plain JSON object describing a whole deck; Slide Writing renders
 it against any template (or the bootstrap default). Unknown keys anywhere
 in the spec are ignored, so specs stay forward compatible.
 
@@ -526,10 +526,10 @@ _TYPE_CHECKERS: dict[str, Callable[[str, dict, list], None]] = {
 
 
 def build_from_spec(spec: dict, template_path: Union[str, None] = None) -> Deck:
-    """Build a :class:`~deckforge.api.Deck` from a deck spec.
+    """Build a :class:`~slidewriting.api.Deck` from a deck spec.
 
     The spec is validated first; any problems raise
-    :class:`~deckforge.errors.SpecError` listing every issue with its slide
+    :class:`~slidewriting.errors.SpecError` listing every issue with its slide
     index. ``template_path`` overrides ``spec["template"]``; when neither is
     given, the bootstrap default template is created with
     ``spec.get("accent", "206EFB")`` as accent color. The returned deck has
@@ -580,7 +580,7 @@ def _layout_for(deck: Deck, sd: dict, *candidates: str) -> LayoutSpec:
     """Pick the layout for a slide spec.
 
     An explicit ``"layout"`` key wins (and raises
-    :class:`~deckforge.errors.ParseError` when it does not match). Otherwise
+    :class:`~slidewriting.errors.ParseError` when it does not match). Otherwise
     the ``candidates`` queries are tried in order, then ``"obj"``, then the
     first layout of the template.
     """

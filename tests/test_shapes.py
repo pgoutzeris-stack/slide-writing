@@ -1,13 +1,13 @@
-"""Unit tests for deckforge.shapes (free shapes, connectors, pictures, image sniffing)."""
+"""Unit tests for slidewriting.shapes (free shapes, connectors, pictures, image sniffing)."""
 
 from __future__ import annotations
 
 import struct
 import unittest
 
-from deckforge.emu import Box
-from deckforge.errors import BuildError
-from deckforge.shapes import (
+from slidewriting.emu import Box
+from slidewriting.errors import BuildError
+from slidewriting.shapes import (
     connector_el,
     detect_image,
     line_props,
@@ -15,7 +15,7 @@ from deckforge.shapes import (
     picture_el,
     shape_el,
 )
-from deckforge.xmlcore import el, find, findall, get, qn
+from slidewriting.xmlcore import el, find, findall, get, qn
 
 
 def _png_bytes(width: int, height: int) -> bytes:

@@ -1,7 +1,7 @@
 """Design model for parsed PPTX templates.
 
-The dataclasses in this module describe everything DeckForge knows about a
-template after :class:`~deckforge.parser.TemplateParser` has run: slide size,
+The dataclasses in this module describe everything Slide Writing knows about a
+template after :class:`~slidewriting.parser.TemplateParser` has run: slide size,
 slide masters (with color map and theme), their layouts, the placeholders
 declared on masters and layouts, and an inventory of the existing slides.
 
@@ -130,7 +130,7 @@ class TemplateInfo:
         An ``int`` query selects by position in :attr:`layouts`. A ``str``
         query is matched case-insensitively in this order: exact layout name,
         then layout type (``ltype``), then name substring. Raises
-        :class:`~deckforge.errors.ParseError` listing the available layouts
+        :class:`~slidewriting.errors.ParseError` listing the available layouts
         when nothing matches.
         """
         layouts = self.layouts
@@ -153,10 +153,10 @@ class TemplateInfo:
         raise ParseError(self._no_match_message(query))
 
     def resolver(self, layout: LayoutSpec) -> ColorResolver:
-        """Build a :class:`~deckforge.theme.ColorResolver` for a layout.
+        """Build a :class:`~slidewriting.theme.ColorResolver` for a layout.
 
         The resolver combines the theme and color map of the master the
-        layout belongs to. Raises :class:`~deckforge.errors.ParseError` if
+        layout belongs to. Raises :class:`~slidewriting.errors.ParseError` if
         the layout references a master unknown to this template.
         """
         for master in self.masters:

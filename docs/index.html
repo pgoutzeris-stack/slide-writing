@@ -1597,8 +1597,6 @@ function renderAnalyse() {
     {l:'Formen',v:tot.shapes},
   ].map(({l,v})=>`<div class="deck-total-box"><div class="dv">${v}</div><div class="dl">${l}</div></div>`).join('');
 
-  // Legacy stat-row (hidden but kept for structure)
-  document.getElementById('stat-row').innerHTML='';
 
   const slots=['accent1','accent2','accent3','accent4','accent5','accent6','dk1','dk2','lt1','lt2'];
   document.getElementById('color-swatches').innerHTML=slots

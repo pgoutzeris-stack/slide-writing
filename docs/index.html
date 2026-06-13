@@ -435,6 +435,7 @@ const NSMAP = {
 };
 const CHART_URI = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
 const TABLE_URI = 'http://schemas.openxmlformats.org/drawingml/2006/table';
+const DIAGRAM_URI = 'http://schemas.openxmlformats.org/drawingml/2006/diagram';
 const SLIDE_LABELS = {
   title:'Titel',section:'Abschnitt',bullets:'Inhalt',agenda:'Agenda',
   kpi:'KPIs',table:'Tabelle',waterfall:'Wasserfall',bars:'Balken',
@@ -936,8 +937,17 @@ function foText(txBody, box, TC, defaultFont, defaultTextColor, txLevels) {
     const pPr=para.getElementsByTagNameNS(NSMAP.a,'pPr')[0];
     const algn=pPr?.getAttribute('algn')||'';
     const ta={l:'left',ctr:'center',r:'right',just:'justify',dist:'justify'}[algn]||'left';
-    const spcEl=pPr?.getElementsByTagNameNS(NSMAP.a,'spcPct')?.[0]||pPr?.getElementsByTagNameNS(NSMAP.a,'spcAft')?.[0];
-    const spc=+(spcEl?.getAttribute('val')??100000)/100000;
+    function getSpVal(container){
+      if(!container)return null;
+      const pct=container.getElementsByTagNameNS(NSMAP.a,'spcPct')[0];
+      if(pct){const v=+pct.getAttribute('val');return{pct:v/100000};}
+      const pts=container.getElementsByTagNameNS(NSMAP.a,'spcPts')[0];
+      if(pts){const v=+pts.getAttribute('val');return{pts:v/100};}
+      return null;
+    }
+    const lnSpcVal=getSpVal(pPr?.getElementsByTagNameNS(NSMAP.a,'lnSpc')[0]);
+    const spcBefVal=getSpVal(pPr?.getElementsByTagNameNS(NSMAP.a,'spcBef')[0]);
+    const spcAftVal=getSpVal(pPr?.getElementsByTagNameNS(NSMAP.a,'spcAft')[0]);
     const lvl=+(pPr?.getAttribute('lvl')||0);
 
     // Resolve default sz/color/font for this level: run rPr > para defRPr > lstStyle > txLevels
@@ -992,9 +1002,11 @@ function foText(txBody, box, TC, defaultFont, defaultTextColor, txLevels) {
     // Line breaks
     for(const br of para.getElementsByTagNameNS(NSMAP.a,'br'))runHtml+='<br/>';
     if(runHtml){
-      const lh=Math.max(1.1,(spc*1.25));
+      const lh=lnSpcVal?.pct?Math.max(1.0,lnSpcVal.pct):lnSpcVal?.pts?Math.max(1.0,lnSpcVal.pts/((defSz||18)*0.75)):1.25;
+      const mtop=spcBefVal?.pts?`${(spcBefVal.pts*0.75).toFixed(1)}px`:spcBefVal?.pct?`${(spcBefVal.pct*0.5).toFixed(1)}em`:'0';
+      const mbot=spcAftVal?.pts?`${(spcAftVal.pts*0.75).toFixed(1)}px`:spcAftVal?.pct?`${(spcAftVal.pct*0.5).toFixed(1)}em`:'0.15em';
       const indPx=lvl>0?lvl*16:0;
-      pHtml+=`<div style="text-align:${ta};line-height:${lh.toFixed(2)};margin-bottom:0.1em;${indPx?`padding-left:${indPx}px;`:''}">${runHtml}</div>`;
+      pHtml+=`<div style="text-align:${ta};line-height:${lh.toFixed(2)};margin-top:${mtop};margin-bottom:${mbot};${indPx?`padding-left:${indPx}px;`:''}">${runHtml}</div>`;
     } else {
       pHtml+=`<div style="height:${((defSz||12)*0.5).toFixed(1)}px"></div>`;
     }
@@ -1557,6 +1569,40 @@ function renderGraphicFrameSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont){
     const tbl=gd?.getElementsByTagNameNS(NSMAP.a,'tbl')[0];
     if(tbl&&tbl.getElementsByTagNameNS(NSMAP.a,'tr').length)
       return renderTableSvg(tbl,b,TC,defaultFont);
+  }
+  if(uri===DIAGRAM_URI){
+    try{
+      const NS_DGM='http://schemas.openxmlformats.org/drawingml/2006/diagram';
+      const relIds=gd.getElementsByTagNameNS(NS_DGM,'relIds')[0];
+      const dmRid=relIds?.getAttributeNS(NSMAP.r,'dm')||relIds?.getAttribute('r:dm');
+      const dmRel=dmRid&&sRels?sRels[dmRid]:null;
+      const dmKey=dmRel?Object.keys(entries||{}).find(k=>k.endsWith(dmRel.target.split('/').pop())):null;
+      if(dmKey&&entries[dmKey]){
+        const dmDoc=parseXml(entries[dmKey]);
+        const textEls=[...dmDoc.getElementsByTagNameNS(NSMAP.a,'t')].map(e=>e.textContent.trim()).filter(Boolean);
+        if(textEls.length){
+          const ac='#'+(TC.accent1||'206efb');
+          const pad=6, step=Math.min((w-pad*2)/textEls.length, h*0.85);
+          const bw=step*0.82, bh=Math.min(h*0.55, 48*sy), by=y+(h-bh)/2;
+          let out=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="${ac}09" rx="4"/>`;
+          textEls.slice(0,8).forEach((txt,i)=>{
+            const bx=x+pad+i*step+(step-bw)/2;
+            out+=`<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" fill="${ac}" rx="3" opacity="0.85"/>`;
+            const fs=Math.max(7,Math.min(11,bw*0.14));
+            const label=txt.length>18?txt.slice(0,16)+'…':txt;
+            out+=`<text x="${(bx+bw/2).toFixed(1)}" y="${(by+bh/2+fs*0.35).toFixed(1)}" text-anchor="middle" font-size="${fs.toFixed(1)}" font-family="system-ui" fill="#fff" font-weight="600">${label.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</text>`;
+            if(i<textEls.length-1){
+              const ax=bx+bw+2, ay2=by+bh/2;
+              out+=`<polygon points="${ax.toFixed(1)},${(ay2-3).toFixed(1)} ${(ax+5).toFixed(1)},${ay2.toFixed(1)} ${ax.toFixed(1)},${(ay2+3).toFixed(1)}" fill="${ac}" opacity="0.6"/>`;
+            }
+          });
+          return out;
+        }
+      }
+    }catch(_){}
+    // fallback: colored placeholder
+    const ac='#'+(TC.accent1||'206efb');
+    return`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="${ac}0d" rx="4" stroke="${ac}" stroke-width="0.6" stroke-opacity="0.4"/><text x="${(x+w/2).toFixed(1)}" y="${(y+h/2).toFixed(1)}" text-anchor="middle" font-size="${Math.max(8,h*.1).toFixed(1)}" fill="${ac}" font-family="system-ui" opacity="0.5">⬡ SmartArt</text>`;
   }
   return'';
 }

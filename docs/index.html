@@ -808,6 +808,29 @@ function resolveClr(containerEl, TC) {
   if(pc)return'#'+(PRST_CLR[pc.getAttribute('val')||'black']||'000000');
   return null;
 }
+// Generate SVG linear gradient from DrawingML gradFill. Returns {defs, fill} or null.
+function resolveGradFill(gf, TC, id) {
+  if(!gf)return null;
+  const gsLst=gf.getElementsByTagNameNS(NSMAP.a,'gsLst')[0];
+  if(!gsLst)return null;
+  const stops=[...gsLst.getElementsByTagNameNS(NSMAP.a,'gs')]
+    .sort((a,b)=>+(a.getAttribute('pos')||0)-(+(b.getAttribute('pos')||0)));
+  if(!stops.length)return null;
+  const lin=gf.getElementsByTagNameNS(NSMAP.a,'lin')[0];
+  const angRaw=+(lin?.getAttribute('ang')||0)/60000; // 1/60000 degree units
+  const ang=angRaw % 360;
+  // Convert PowerPoint angle (clockwise from top) to SVG gradient coords
+  const rad=(ang-90)*Math.PI/180;
+  const x1=50-50*Math.cos(rad), y1=50-50*Math.sin(rad);
+  const x2=50+50*Math.cos(rad), y2=50+50*Math.sin(rad);
+  const stopHtml=stops.map(gs=>{
+    const pos=+(gs.getAttribute('pos')||0)/100000;
+    const c=resolveClr(gs,TC)||'#CCCCCC';
+    return`<stop offset="${(pos*100).toFixed(1)}%" stop-color="${c}"/>`;
+  }).join('');
+  const defs=`<defs><linearGradient id="${id}" x1="${x1.toFixed(1)}%" y1="${y1.toFixed(1)}%" x2="${x2.toFixed(1)}%" y2="${y2.toFixed(1)}%" gradientUnits="objectBoundingBox">${stopHtml}</linearGradient></defs>`;
+  return{defs,fill:`url(#${id})`};
+}
 function resolveFill(spPr, TC, fallback) {
   if(!spPr)return fallback;
   const a=NSMAP.a;
@@ -815,7 +838,12 @@ function resolveFill(spPr, TC, fallback) {
   const sf=spPr.getElementsByTagNameNS(a,'solidFill')[0];
   if(sf){const c=resolveClr(sf,TC);if(c)return c;}
   const gf=spPr.getElementsByTagNameNS(a,'gradFill')[0];
-  if(gf){const gs=gf.getElementsByTagNameNS(a,'gs')[0];if(gs){const c=resolveClr(gs,TC);if(c)return c;}}
+  if(gf){
+    const gsLst=gf.getElementsByTagNameNS(a,'gsLst')[0];
+    const stops=gsLst?[...gsLst.getElementsByTagNameNS(a,'gs')]
+      .sort((x,y)=>+(x.getAttribute('pos')||0)-(+(y.getAttribute('pos')||0))):[];
+    if(stops.length){const c=resolveClr(stops[0],TC);if(c)return c;}
+  }
   return fallback;
 }
 
@@ -1053,6 +1081,26 @@ function buildPhMap(doc, sx, sy){
   return{map,lst};
 }
 
+function getShapeShadow(spEl,TC){
+  const spPr=spEl?.getElementsByTagNameNS?.(NSMAP.p,'spPr')[0];
+  const effLst=spPr?.getElementsByTagNameNS(NSMAP.a,'effectLst')[0];
+  const shdw=effLst?.getElementsByTagNameNS(NSMAP.a,'outerShdw')[0];
+  if(!shdw)return null;
+  const blurRad=+(shdw.getAttribute('blurRad')||50800)/914400*72;
+  const dist=+(shdw.getAttribute('dist')||38100)/914400*72;
+  const dir=+(shdw.getAttribute('dir')||2700000)/60000;
+  const rad=dir*Math.PI/180;
+  const dx=(dist*Math.cos(rad)).toFixed(2);
+  const dy=(dist*Math.sin(rad)).toFixed(2);
+  const blur=Math.max(0.5,blurRad).toFixed(1);
+  const c=resolveClr(shdw,TC)||'#000000';
+  const alpha=0.35;
+  const r2=parseInt(c.slice(1,3),16),g2=parseInt(c.slice(3,5),16),b2=parseInt(c.slice(5,7),16);
+  const id='shdw'+(Math.abs((+dx*1000+(+dy))|0));
+  const filterDef=`<filter id="${id}" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="${dx}" dy="${dy}" stdDeviation="${blur}" flood-color="rgb(${r2},${g2},${b2})" flood-opacity="${alpha}"/></filter>`;
+  return{filterId:id,filterDef};
+}
+
 function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap,phLst){
   let b=svgBox(el,sx,sy);
   const ph=el.getElementsByTagNameNS(NSMAP.p,'ph')[0];
@@ -1081,7 +1129,18 @@ function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap,phLst){
   }
 
   // Fill: explicit spPr > solidFill/gradFill/noFill, else style fillRef, else transparent for ph
-  const explicitFill=resolveFill(spPr,TC,null);
+  let gradDefs='';
+  const spPrGradFill=spPr?.getElementsByTagNameNS(NSMAP.a,'gradFill')[0];
+  const spPrNoFill=spPr?.getElementsByTagNameNS(NSMAP.a,'noFill')[0];
+  const spPrSolidFill=spPr?.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
+  let explicitFill=null;
+  if(spPrNoFill){explicitFill='none';}
+  else if(spPrSolidFill){explicitFill=resolveClr(spPrSolidFill,TC)||null;}
+  else if(spPrGradFill){
+    const gId='g'+Math.abs((slidePn||'').split('').reduce((h,c)=>((h<<5)-h+c.charCodeAt(0))|0,0))+'_'+((x*31+y)|0);
+    const gr=resolveGradFill(spPrGradFill,TC,gId);
+    if(gr){gradDefs=gr.defs;explicitFill=gr.fill;}
+  }
   const styleFill=explicitFill===null?getStyleFill(el,TC):null;
   const fill=explicitFill!==null?explicitFill:(styleFill||(ph?'none':'rgba(180,180,180,0.08)'));
   const{stroke,sw}=shapeOutline(el,TC);
@@ -1123,10 +1182,48 @@ function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap,phLst){
     const ah=h*.4,ay=(h-ah)/2,aw=Math.min(w*.35,h);
     shape=`<polygon points="${x.toFixed(1)},${(y+ay).toFixed(1)} ${(x+w-aw).toFixed(1)},${(y+ay).toFixed(1)} ${(x+w-aw).toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${cy.toFixed(1)} ${(x+w-aw).toFixed(1)},${(y+h).toFixed(1)} ${(x+w-aw).toFixed(1)},${(y+h-ay).toFixed(1)} ${x.toFixed(1)},${(y+h-ay).toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
   }else if(prst==='star5'){
-    // Simple 5-pointed star approximation
     const pts=[],R=Math.min(w,h)/2,r=R*0.382;
     for(let i=0;i<10;i++){const a=Math.PI*i/5-Math.PI/2,ra=i%2?r:R;pts.push(`${(cx+ra*Math.cos(a)).toFixed(1)},${(cy+ra*Math.sin(a)).toFixed(1)}`);}
     shape=`<polygon points="${pts.join(' ')}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='star4'){
+    const pts=[],R=Math.min(w,h)/2,r=R*0.25;
+    for(let i=0;i<8;i++){const a=Math.PI*i/4-Math.PI/4,ra=i%2?r:R;pts.push(`${(cx+ra*Math.cos(a)).toFixed(1)},${(cy+ra*Math.sin(a)).toFixed(1)}`);}
+    shape=`<polygon points="${pts.join(' ')}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='star6'){
+    const pts=[],R=Math.min(w,h)/2,r=R*0.5;
+    for(let i=0;i<12;i++){const a=Math.PI*i/6-Math.PI/2,ra=i%2?r:R;pts.push(`${(cx+ra*Math.cos(a)).toFixed(1)},${(cy+ra*Math.sin(a)).toFixed(1)}`);}
+    shape=`<polygon points="${pts.join(' ')}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='star8'){
+    const pts=[],R=Math.min(w,h)/2,r=R*0.4;
+    for(let i=0;i<16;i++){const a=Math.PI*i/8-Math.PI/8,ra=i%2?r:R;pts.push(`${(cx+ra*Math.cos(a)).toFixed(1)},${(cy+ra*Math.sin(a)).toFixed(1)}`);}
+    shape=`<polygon points="${pts.join(' ')}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='parallelogram'){
+    const d=w*.2;
+    shape=`<polygon points="${(x+d).toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${y.toFixed(1)} ${(x+w-d).toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${(y+h).toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='trapezoid'){
+    const d=w*.15;
+    shape=`<polygon points="${(x+d).toFixed(1)},${y.toFixed(1)} ${(x+w-d).toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${(y+h).toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='leftArrow'){
+    const ah=h*.4,ay=(h-ah)/2,aw=Math.min(w*.35,h);
+    shape=`<polygon points="${(x+w).toFixed(1)},${(y+ay).toFixed(1)} ${(x+aw).toFixed(1)},${(y+ay).toFixed(1)} ${(x+aw).toFixed(1)},${y.toFixed(1)} ${x.toFixed(1)},${cy.toFixed(1)} ${(x+aw).toFixed(1)},${(y+h).toFixed(1)} ${(x+aw).toFixed(1)},${(y+h-ay).toFixed(1)} ${(x+w).toFixed(1)},${(y+h-ay).toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='upArrow'){
+    const aw=w*.4,ax=(w-aw)/2,ah=Math.min(h*.35,w);
+    shape=`<polygon points="${(x+ax).toFixed(1)},${(y+h).toFixed(1)} ${(x+ax).toFixed(1)},${(y+ah).toFixed(1)} ${x.toFixed(1)},${(y+ah).toFixed(1)} ${cx.toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${(y+ah).toFixed(1)} ${(x+w-ax).toFixed(1)},${(y+ah).toFixed(1)} ${(x+w-ax).toFixed(1)},${(y+h).toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='downArrow'){
+    const aw=w*.4,ax=(w-aw)/2,ah=Math.min(h*.35,w);
+    shape=`<polygon points="${(x+ax).toFixed(1)},${y.toFixed(1)} ${(x+ax).toFixed(1)},${(y+h-ah).toFixed(1)} ${x.toFixed(1)},${(y+h-ah).toFixed(1)} ${cx.toFixed(1)},${(y+h).toFixed(1)} ${(x+w).toFixed(1)},${(y+h-ah).toFixed(1)} ${(x+w-ax).toFixed(1)},${(y+h-ah).toFixed(1)} ${(x+w-ax).toFixed(1)},${y.toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='leftRightArrow'){
+    const ah=h*.4,ay=(h-ah)/2,aw=Math.min(w*.2,h);
+    shape=`<polygon points="${x.toFixed(1)},${cy.toFixed(1)} ${(x+aw).toFixed(1)},${y.toFixed(1)} ${(x+aw).toFixed(1)},${(y+ay).toFixed(1)} ${(x+w-aw).toFixed(1)},${(y+ay).toFixed(1)} ${(x+w-aw).toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${cy.toFixed(1)} ${(x+w-aw).toFixed(1)},${(y+h).toFixed(1)} ${(x+w-aw).toFixed(1)},${(y+h-ay).toFixed(1)} ${(x+aw).toFixed(1)},${(y+h-ay).toFixed(1)} ${(x+aw).toFixed(1)},${(y+h).toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='plus'||prst==='mathPlus'){
+    const t=w/3,tc=(w-t)/2;
+    shape=`<polygon points="${(x+tc).toFixed(1)},${y.toFixed(1)} ${(x+tc+t).toFixed(1)},${y.toFixed(1)} ${(x+tc+t).toFixed(1)},${(y+tc).toFixed(1)} ${(x+w).toFixed(1)},${(y+tc).toFixed(1)} ${(x+w).toFixed(1)},${(y+tc+t).toFixed(1)} ${(x+tc+t).toFixed(1)},${(y+tc+t).toFixed(1)} ${(x+tc+t).toFixed(1)},${(y+h).toFixed(1)} ${(x+tc).toFixed(1)},${(y+h).toFixed(1)} ${(x+tc).toFixed(1)},${(y+tc+t).toFixed(1)} ${x.toFixed(1)},${(y+tc+t).toFixed(1)} ${x.toFixed(1)},${(y+tc).toFixed(1)} ${(x+tc).toFixed(1)},${(y+tc).toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='callout1'||prst==='wedgeRectCallout'||prst==='wedgeRoundRectCallout'||prst==='cloudCallout'){
+    const rx=prst.includes('Round')?Math.min(w,h)*0.1:0;
+    shape=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${(h*.85).toFixed(1)}" rx="${rx.toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/><polygon points="${(x+w*.15).toFixed(1)},${(y+h*.85).toFixed(1)} ${(x+w*.3).toFixed(1)},${(y+h*.85).toFixed(1)} ${(x+w*.22).toFixed(1)},${(y+h).toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='ribbon'||prst==='ribbon2'||prst==='ellipseRibbon'||prst==='ellipseRibbon2'){
+    const d=h*.25;
+    shape=`<polygon points="${x.toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${(y+h-d).toFixed(1)} ${(x+w*0.85).toFixed(1)},${(y+h).toFixed(1)} ${(x+w*0.7).toFixed(1)},${(y+h-d).toFixed(1)} ${(x+w*0.3).toFixed(1)},${(y+h-d).toFixed(1)} ${(x+w*0.15).toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${(y+h-d).toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
   }else{
     shape=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
   }
@@ -1183,7 +1280,10 @@ function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap,phLst){
   }
 
   const txt=foText(txBody,b,TC,defaultFont,styleTextClr,txLevels);
-  return shape+txt;
+  const shdwResult=getShapeShadow(el,TC);
+  const shdwD=shdwResult?`<defs>${shdwResult.filterDef}</defs>`:'';
+  const shapeOut=shdwResult?`<g filter="url(#${shdwResult.filterId})">${shape}</g>`:shape;
+  return gradDefs+shdwD+shapeOut+txt;
 }
 
 function renderPicSvg(el,sx,sy,sRels,entries){
@@ -1199,8 +1299,8 @@ function renderPicSvg(el,sx,sy,sRels,entries){
     const du=binToDataUrl(entries[imgKey],imgKey);
     if(du)return`<image x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" href="${du}" preserveAspectRatio="xMidYMid meet" ${TR}/>`;
   }
-  // Fallback: light gray box
-  return`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="#e8ecf0" rx="1" ${TR}/><line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${(x+w).toFixed(1)}" y2="${(y+h).toFixed(1)}" stroke="#c8d0d8" stroke-width="0.5"/><line x1="${(x+w).toFixed(1)}" y1="${y.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(y+h).toFixed(1)}" stroke="#c8d0d8" stroke-width="0.5"/>`;
+  // Unsupported format (EMF/WMF) or missing image — render nothing (no X placeholder)
+  return'';
 }
 
 function renderTableSvg(tbl,box,TC,defaultFont){
@@ -1424,23 +1524,45 @@ function renderSlideSvg(slide, analysis) {
   const SW=analysis.slideWidth||12192000, SH=analysis.slideHeight||6858000;
   const sx=W/SW, sy=H/SH;
   const TC=analysis.theme.colors||{};
-  // Use master background color if available, else theme lt1
+  const entries=S.entries||{};
+
+  // Get actual slide background by parsing the slide doc directly
   let bg='#'+(TC.lt1||'FFFFFF');
-  if(analysis.masterPn&&S.entries?.[analysis.masterPn]){
-    try{
-      const mDoc=parseXml(S.entries[analysis.masterPn]);
-      const mc=getSlideBackground(mDoc,slide,analysis,S.entries||{});
-      if(mc)bg=mc;
-    }catch(e){}
+  try{
+    const sd=entries[slide.partname];
+    if(sd){
+      const sDoc=parseXml(sd);
+      const c=getSlideBackground(sDoc,slide,analysis,entries);
+      if(c)bg=c;
+    }
+  }catch(e){}
+
+  // Detect background luminance → choose contrasting overlays
+  function hexLum(hex){
+    const h=(hex||'').replace('#','');
+    if(h.length!==6)return 0.5;
+    const r=parseInt(h.slice(0,2),16)/255,g=parseInt(h.slice(2,4),16)/255,b=parseInt(h.slice(4,6),16)/255;
+    return 0.2126*r+0.7152*g+0.0722*b;
   }
-  const FILL={title:'rgba(15,23,42,.12)',ctrTitle:'rgba(15,23,42,.12)',subTitle:'rgba(15,23,42,.07)',body:'rgba(15,23,42,.06)',obj:'rgba(15,23,42,.06)',chart:'rgba(32,110,251,.15)',table:'rgba(3,105,161,.13)',image:'rgba(15,118,110,.12)',group:'rgba(15,23,42,.06)',other:'rgba(15,23,42,.04)'};
+  const dark=hexLum(bg)<0.45;
+  const accent='#'+(TC.accent1||'206efb');
+  const ov=(a)=>dark?`rgba(255,255,255,${a})`:`rgba(15,23,42,${a})`;
+  const FILL={
+    title:ov(0.28),ctrTitle:ov(0.28),subTitle:ov(0.16),
+    body:ov(0.13),obj:ov(0.13),other:ov(0.08),
+    chart:accent+'55',table:accent+'44',image:ov(0.18),group:ov(0.08),
+  };
+
   let shapes='';
   for(const it of slide.shapeItems||[]){
     const x=(it.x*sx).toFixed(1),y=(it.y*sy).toFixed(1);
     const w=Math.max(it.w*sx,2).toFixed(1),h=Math.max(it.h*sy,2).toFixed(1);
     shapes+=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1" fill="${FILL[it.shapeType]||FILL.other}"/>`;
   }
-  if(!shapes)shapes=`<rect x="10" y="10" width="${W-20}" height="14" rx="2" fill="rgba(15,23,42,.1)"/><rect x="10" y="30" width="${W-40}" height="7" rx="1" fill="rgba(15,23,42,.06)"/><rect x="10" y="41" width="${W-50}" height="7" rx="1" fill="rgba(15,23,42,.06)"/>`;
+  if(!shapes){
+    const lc=ov(0.18),lc2=ov(0.10);
+    shapes=`<rect x="10" y="10" width="${W-20}" height="14" rx="2" fill="${lc}"/><rect x="10" y="30" width="${W-40}" height="7" rx="1" fill="${lc2}"/><rect x="10" y="41" width="${W-50}" height="7" rx="1" fill="${lc2}"/>`;
+  }
   return`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="${bg}"/>${shapes}</svg>`;
 }
 

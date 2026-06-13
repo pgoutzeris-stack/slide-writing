@@ -1356,7 +1356,9 @@ function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap,phLst){
     }
   }
 
-  const txt=foText(txBody,b,TC,defaultFont,styleTextClr,txLevels);
+  let txt=foText(txBody,b,TC,defaultFont,styleTextClr,txLevels);
+  // Apply same transform to foreignObject so rotated/flipped text tracks the shape
+  if(transforms.length&&txt)txt=txt.replace('<foreignObject ',`<foreignObject transform="${transforms.join(' ')}" `);
   const shdwResult=getShapeShadow(el,TC);
   const shdwD=shdwResult?`<defs>${shdwResult.filterDef}</defs>`:'';
   const shapeOut=shdwResult?`<g filter="url(#${shdwResult.filterId})">${shape}</g>`:shape;
@@ -1743,6 +1745,21 @@ function renderSlideToSvg(slideIdx, W, H) {
   const doc=parseXml(slideData);
   const sRels=parseRels(S.entries?.[relsKey(slide.partname)]);
 
+  // Apply slide-level clrMapOvr — overrideClrMapping remaps symbolic color slots
+  const clrMapOvr=doc.getElementsByTagNameNS(NSMAP.p,'clrMapOvr')[0];
+  const ovr=clrMapOvr?.getElementsByTagNameNS(NSMAP.a,'overrideClrMapping')[0];
+  if(ovr){
+    const newSlot={...TC._schemeSlot};
+    for(const attr of ['bg1','bg2','tx1','tx2','accent1','accent2','accent3','accent4','accent5','accent6','hlink','folHlink']){
+      const v=ovr.getAttribute(attr);if(v)newSlot[attr]=v;
+    }
+    TC._schemeSlot=newSlot;
+    // Also re-apply slot mapping so resolveClr picks up new aliases
+    for(const [sym,slot] of Object.entries(newSlot)){
+      if(TC[sym]===undefined&&TC[slot]!==undefined)TC[sym]=TC[slot];
+    }
+  }
+
   // Parse layout + master docs for placeholder positions and layer shapes
   let lDoc=null, mDoc=null, lRels=null, mRels=null;
   if(slide.layoutPartname&&S.entries[slide.layoutPartname]){
@@ -1759,8 +1776,27 @@ function renderSlideToSvg(slideIdx, W, H) {
   if(mDoc){const{map:mm,lst:ml}=buildPhMap(mDoc,sx,sy);Object.assign(phMap,mm);Object.assign(phLst,ml);}
   if(lDoc){const{map:lm,lst:ll}=buildPhMap(lDoc,sx,sy);Object.assign(phMap,lm);Object.assign(phLst,ll);}
 
-  // Background color (cascade slide→layout→master→theme)
-  const bgFill=getSlideBackground(doc,slide,a,S.entries)||'#FFFFFF';
+  // Background: try gradient fill first, fall back to solid color
+  let bgDefs='', bgFillAttr='#FFFFFF';
+  {
+    function extractGradBg(d){
+      const bg=d.getElementsByTagNameNS(NSMAP.p,'bg')[0];
+      const bgPr=bg?.getElementsByTagNameNS(NSMAP.p,'bgPr')[0]||d.getElementsByTagNameNS(NSMAP.p,'bgPr')[0];
+      const gf=bgPr?.getElementsByTagNameNS(NSMAP.a,'gradFill')[0];
+      if(!gf)return null;
+      const gid='bg'+slideIdx;
+      const gr=resolveGradFill(gf,TC,gid);
+      if(!gr)return null;
+      return gr;
+    }
+    const bgGrad=extractGradBg(doc)||(!getSlideBackground(doc,slide,a,S.entries)?extractGradBg(lDoc||{getElementsByTagNameNS:()=>null})||extractGradBg(mDoc||{getElementsByTagNameNS:()=>null}):null);
+    if(bgGrad){
+      bgDefs=`<defs>${bgGrad.defs}</defs>`;
+      bgFillAttr=bgGrad.fill;
+    } else {
+      bgFillAttr=getSlideBackground(doc,slide,a,S.entries)||'#FFFFFF';
+    }
+  }
 
   // Background image — check slide, then layout, then master
   function extractBgImg(d, rels){
@@ -1791,7 +1827,7 @@ function renderSlideToSvg(slideIdx, W, H) {
       slideShapes+=renderNodeSvg(ch,sx,sy,TC,sRels,S.entries,slide.partname,defaultFont,phMap,phLst);
   }
 
-  return`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><rect width="${W}" height="${H}" fill="${bgFill}"/>${bgImgEl}${masterShapes}${layoutShapes}${slideShapes}</svg>`;
+  return`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">${bgDefs}<rect width="${W}" height="${H}" fill="${bgFillAttr}"/>${bgImgEl}${masterShapes}${layoutShapes}${slideShapes}</svg>`;
 }
 
 // Thumbnail — fast colored-rect version (no foreignObject overhead for 20+ thumbs)

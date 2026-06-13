@@ -769,6 +769,22 @@ const SCHEME_SLOT = {tx1:'dk1',tx2:'dk2',bg1:'lt1',bg2:'lt2',phClr:'dk1',
   accent1:'accent1',accent2:'accent2',accent3:'accent3',
   accent4:'accent4',accent5:'accent5',accent6:'accent6',
   hlink:'hlink',folHlink:'folHlink'};
+// Build the symbolic→theme-slot map from a master's <p:clrMap>. Each master can
+// invert bg/tx (e.g. dark-background masters map bg1→dk1, tx1→lt1).
+function buildClrMap(cmEl){
+  const map={dk1:'dk1',lt1:'lt1',dk2:'dk2',lt2:'lt2',
+    accent1:'accent1',accent2:'accent2',accent3:'accent3',
+    accent4:'accent4',accent5:'accent5',accent6:'accent6',
+    hlink:'hlink',folHlink:'folHlink',
+    bg1:'lt1',tx1:'dk1',bg2:'lt2',tx2:'dk2'};
+  if(cmEl){
+    for(const attr of ['bg1','tx1','bg2','tx2','accent1','accent2','accent3','accent4','accent5','accent6','hlink','folHlink']){
+      const v=cmEl.getAttribute(attr); if(v)map[attr]=v;
+    }
+  }
+  map.phClr=map.tx1||'dk1';
+  return map;
+}
 const PRST_CLR = {black:'000000',white:'FFFFFF',red:'FF0000',darkRed:'8B0000',
   green:'008000',darkGreen:'006400',blue:'0000FF',darkBlue:'00008B',
   yellow:'FFFF00',cyan:'00FFFF',magenta:'FF00FF',orange:'FFA500',
@@ -803,7 +819,7 @@ function resolveClr(containerEl, TC) {
   const srgb=containerEl.getElementsByTagNameNS(a,'srgbClr')[0];
   if(srgb)return'#'+applyMods(srgb.getAttribute('val')||'CCCCCC',srgb);
   const sc=containerEl.getElementsByTagNameNS(a,'schemeClr')[0];
-  if(sc){const slot=sc.getAttribute('val')||'dk1';const key=SCHEME_SLOT[slot]||slot;const hex=TC[key]||'CCCCCC';return'#'+applyMods(hex,sc);}
+  if(sc){const slot=sc.getAttribute('val')||'dk1';const key=(TC._clrMap||SCHEME_SLOT)[slot]||SCHEME_SLOT[slot]||slot;const hex=TC[key]||TC[slot]||'CCCCCC';return'#'+applyMods(hex,sc);}
   const sys=containerEl.getElementsByTagNameNS(a,'sysClr')[0];
   if(sys){const lc=sys.getAttribute('lastClr');return lc?'#'+lc:'#FFFFFF';}
   const pc=containerEl.getElementsByTagNameNS(a,'prstClr')[0];
@@ -896,7 +912,7 @@ function resolveTxStyleColor(entry, TC) {
   if (!entry?.color) return null;
   if (entry.color.startsWith('__scheme__')) {
     const slot = entry.color.slice(10);
-    const mapped = (TC._schemeSlot||{})[slot] || slot;
+    const mapped = (TC._clrMap||TC._schemeSlot||SCHEME_SLOT)[slot] || slot;
     return '#' + (TC[mapped] || TC[slot] || '');
   }
   return entry.color;
@@ -1047,14 +1063,11 @@ function getStyleFill(spEl, TC){
   if(!fillRef)return null;
   const idx=+(fillRef.getAttribute('idx')||0);
   if(idx===0)return'none';
+  // fillRef idx is a 1-based index into the theme <a:fillStyleLst>, NOT an opacity.
+  // For all common themes idx 1 is a solid fill; idx 2/3 are gradients we approximate
+  // with the same solid color. Return the resolved colour at full opacity.
   const c=resolveClr(fillRef,TC);
   if(!c||c==='none')return null;
-  const hex=c.replace('#','');
-  if(hex.length!==6)return c;
-  const r=parseInt(hex.slice(0,2),16),g=parseInt(hex.slice(2,4),16),b=parseInt(hex.slice(4,6),16);
-  // idx 1 = subtle tint, idx 2 = moderate, idx 3+ = solid
-  if(idx===1)return`rgba(${r},${g},${b},0.22)`;
-  if(idx===2)return`rgba(${r},${g},${b},0.6)`;
   return c;
 }
 
@@ -1092,6 +1105,35 @@ function buildPhMap(doc, sx, sy){
     }
   }
   return{map,lst};
+}
+
+// Convert a DrawingML <a:custGeom> into an SVG path "d" string, mapping the
+// path's own coordinate space (w×h on <a:path>) into the shape's box (x,y,w,h).
+// Freeforms with inner+outer subpaths form frames — rendered with fill-rule:evenodd.
+function custGeomPath(cg, x, y, w, h){
+  const pathLst=cg.getElementsByTagNameNS(NSMAP.a,'pathLst')[0];
+  if(!pathLst)return null;
+  const paths=[...pathLst.getElementsByTagNameNS(NSMAP.a,'path')];
+  if(!paths.length)return null;
+  let d='';
+  for(const path of paths){
+    const pw=+(path.getAttribute('w')||0)||w||1, ph=+(path.getAttribute('h')||0)||h||1;
+    const sxp=w/pw, syp=h/ph;
+    const X=v=>(x+(+v)*sxp).toFixed(1), Y=v=>(y+(+v)*syp).toFixed(1);
+    for(const cmd of path.children){
+      if(cmd.namespaceURI!==NSMAP.a)continue;
+      const pts=[...cmd.getElementsByTagNameNS(NSMAP.a,'pt')];
+      switch(cmd.localName){
+        case 'moveTo': if(pts[0])d+=`M${X(pts[0].getAttribute('x'))},${Y(pts[0].getAttribute('y'))} `; break;
+        case 'lnTo':   if(pts[0])d+=`L${X(pts[0].getAttribute('x'))},${Y(pts[0].getAttribute('y'))} `; break;
+        case 'cubicBezTo': if(pts.length>=3)d+=`C${pts.slice(0,3).map(p=>`${X(p.getAttribute('x'))},${Y(p.getAttribute('y'))}`).join(' ')} `; break;
+        case 'quadBezTo':  if(pts.length>=2)d+=`Q${pts.slice(0,2).map(p=>`${X(p.getAttribute('x'))},${Y(p.getAttribute('y'))}`).join(' ')} `; break;
+        case 'close':  d+='Z '; break;
+        // arcTo (wR/hR/stAng/swAng) is rare in slide graphics — skipped for now
+      }
+    }
+  }
+  return d.trim()||null;
 }
 
 function getShapeShadow(spEl,TC){
@@ -1142,10 +1184,13 @@ function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap,phLst){
   }
 
   // Fill: explicit spPr > solidFill/gradFill/noFill, else style fillRef, else transparent for ph
+  // IMPORTANT: only consider fills that are DIRECT children of spPr — a descendant
+  // search would wrongly pick up <a:noFill>/<a:solidFill> nested inside <a:ln> or effects.
+  const dChild=(parent,ln)=>{if(!parent)return null;for(const c of parent.children){if(c.namespaceURI===NSMAP.a&&c.localName===ln)return c;}return null;};
   let gradDefs='';
-  const spPrGradFill=spPr?.getElementsByTagNameNS(NSMAP.a,'gradFill')[0];
-  const spPrNoFill=spPr?.getElementsByTagNameNS(NSMAP.a,'noFill')[0];
-  const spPrSolidFill=spPr?.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
+  const spPrGradFill=dChild(spPr,'gradFill');
+  const spPrNoFill=dChild(spPr,'noFill');
+  const spPrSolidFill=dChild(spPr,'solidFill');
   let explicitFill=null;
   if(spPrNoFill){explicitFill='none';}
   else if(spPrSolidFill){explicitFill=resolveClr(spPrSolidFill,TC)||null;}
@@ -1155,7 +1200,7 @@ function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap,phLst){
     if(gr){gradDefs=gr.defs;explicitFill=gr.fill;}
   }
   let picFillSvg='';
-  const spPrBlipFill=spPr?.getElementsByTagNameNS(NSMAP.a,'blipFill')[0];
+  const spPrBlipFill=dChild(spPr,'blipFill');
   if(spPrBlipFill){
     explicitFill='none'; // shape border still rendered; image covers the fill
     const blipEl=spPrBlipFill.getElementsByTagNameNS(NSMAP.a,'blip')[0];
@@ -1188,8 +1233,13 @@ function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap,phLst){
   const TR=transforms.length?`transform="${transforms.join(' ')}"`:'';
 
   const A=(attr,val)=>` ${attr}="${val}"`;
+  // Freeform (custGeom): render the actual path, not a solid bounding-box rect.
+  const custGeom=dChild(spPr,'custGeom');
+  const cgD=custGeom?custGeomPath(custGeom,x,y,w,h):null;
   let shape='';
-  if(prst==='ellipse'||prst==='oval'){
+  if(cgD){
+    shape=`<path d="${cgD}" fill-rule="evenodd"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='ellipse'||prst==='oval'){
     shape=`<ellipse cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${(w/2).toFixed(1)}" ry="${(h/2).toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
   }else if(prst==='roundRect'){
     const adj=prstGeom?.getElementsByTagNameNS(NSMAP.a,'gd')[0]?.getAttribute('fmla')||'val 16667';
@@ -1756,7 +1806,9 @@ function renderLayerShapes(doc,sx,sy,TC,rels,entries,pn,defaultFont,skipPh){
 
 // Resolve slide background: cascade slide → layout → master → theme lt1
 function getSlideBackground(slideDoc, slide, a, entries) {
-  const TC=a.theme.colors||{};
+  // Resolve colors through THIS slide's master clrMap (bgRef bg1 → lt1 or dk1).
+  const slideMasterPn=slide.masterPartname||a.masterPn;
+  const TC={...(a.theme.colors||{}), _clrMap:a.masters?.[slideMasterPn]?.clrMap||{...SCHEME_SLOT}};
 
   function extractBg(doc){
     // Check <p:bg><p:bgPr> for solid/grad/blip
@@ -1792,14 +1844,15 @@ function getSlideBackground(slideDoc, slide, a, entries) {
     if(lc&&lc!=='__blip__')return lc;
   }
 
-  // 3. Master
-  if(a.masterPn&&entries[a.masterPn]){
-    const mc=extractBg(parseXml(entries[a.masterPn]));
+  // 3. Master (this slide's own master)
+  if(slideMasterPn&&entries[slideMasterPn]){
+    const mc=extractBg(parseXml(entries[slideMasterPn]));
     if(mc&&mc!=='__blip__')return mc;
   }
 
-  // 4. Theme lt1
-  return'#'+(TC.lt1||'FFFFFF');
+  // 4. Theme: bg1 mapped through this master's clrMap
+  const bgSlot=(TC._clrMap||SCHEME_SLOT).bg1||'lt1';
+  return'#'+(TC[bgSlot]||TC.lt1||'FFFFFF');
 }
 
 function renderSlideToSvg(slideIdx, W, H) {
@@ -1808,12 +1861,16 @@ function renderSlideToSvg(slideIdx, W, H) {
   const slide=a.slides[slideIdx]; if(!slide)return'';
   const SW=a.slideWidth||12192000, SH=a.slideHeight||6858000;
   const sx=W/SW, sy=H/SH;
+  // Resolve THIS slide's master (each layout points to its own master) — masters
+  // differ in background AND clrMap (dark masters invert bg1/tx1).
+  const masterPn=slide.masterPartname||a.masterPn;
+  const masterInfo=a.masters?.[masterPn];
   const TC={
     ...(a.theme.colors||{}),
     _maj: a.theme.majorFont||'Calibri Light',
     _min: a.theme.minorFont||'Calibri',
-    _txSty: a.theme.txStyles||null,
-    _schemeSlot: {tx1:'dk1',tx2:'dk2',bg1:'lt1',bg2:'lt2',phClr:'dk1',dk1:'dk1',dk2:'dk2',lt1:'lt1',lt2:'lt2',accent1:'accent1',accent2:'accent2',accent3:'accent3',accent4:'accent4',accent5:'accent5',accent6:'accent6'},
+    _txSty: masterInfo?.txStyles||a.theme.txStyles||null,
+    _clrMap: masterInfo?.clrMap||{...SCHEME_SLOT},
   };
   const defaultFont=a.theme.minorFont||'Calibri';
 
@@ -1829,15 +1886,12 @@ function renderSlideToSvg(slideIdx, W, H) {
   const clrMapOvr=doc.getElementsByTagNameNS(NSMAP.p,'clrMapOvr')[0];
   const ovr=clrMapOvr?.getElementsByTagNameNS(NSMAP.a,'overrideClrMapping')[0];
   if(ovr){
-    const newSlot={...TC._schemeSlot};
+    const newSlot={...TC._clrMap};
     for(const attr of ['bg1','bg2','tx1','tx2','accent1','accent2','accent3','accent4','accent5','accent6','hlink','folHlink']){
       const v=ovr.getAttribute(attr);if(v)newSlot[attr]=v;
     }
-    TC._schemeSlot=newSlot;
-    // Also re-apply slot mapping so resolveClr picks up new aliases
-    for(const [sym,slot] of Object.entries(newSlot)){
-      if(TC[sym]===undefined&&TC[slot]!==undefined)TC[sym]=TC[slot];
-    }
+    newSlot.phClr=newSlot.tx1||newSlot.phClr||'dk1';
+    TC._clrMap=newSlot;
   }
 
   // Parse layout + master docs for placeholder positions and layer shapes
@@ -1846,9 +1900,9 @@ function renderSlideToSvg(slideIdx, W, H) {
     lDoc=parseXml(S.entries[slide.layoutPartname]);
     lRels=parseRels(S.entries[relsKey(slide.layoutPartname)]);
   }
-  if(a.masterPn&&S.entries[a.masterPn]){
-    mDoc=parseXml(S.entries[a.masterPn]);
-    mRels=parseRels(S.entries[relsKey(a.masterPn)]);
+  if(masterPn&&S.entries[masterPn]){
+    mDoc=parseXml(S.entries[masterPn]);
+    mRels=parseRels(S.entries[relsKey(masterPn)]);
   }
 
   // Build placeholder position + lstStyle maps: master first, layout overrides
@@ -1856,20 +1910,25 @@ function renderSlideToSvg(slideIdx, W, H) {
   if(mDoc){const{map:mm,lst:ml}=buildPhMap(mDoc,sx,sy);Object.assign(phMap,mm);Object.assign(phLst,ml);}
   if(lDoc){const{map:lm,lst:ll}=buildPhMap(lDoc,sx,sy);Object.assign(phMap,lm);Object.assign(phLst,ll);}
 
-  // Background: try gradient fill first, fall back to solid color
+  // Background: prefer a real gradient (cascade slide→layout→master), else solid color
   let bgDefs='', bgFillAttr='#FFFFFF';
   {
-    function extractGradBg(d){
-      const bg=d.getElementsByTagNameNS(NSMAP.p,'bg')[0];
-      const bgPr=bg?.getElementsByTagNameNS(NSMAP.p,'bgPr')[0]||d.getElementsByTagNameNS(NSMAP.p,'bgPr')[0];
+    function hasOwnBg(d){
+      const bg=d?.getElementsByTagNameNS?.(NSMAP.p,'bg')[0];
+      return !!(bg?.getElementsByTagNameNS(NSMAP.p,'bgPr')[0]||bg?.getElementsByTagNameNS(NSMAP.p,'bgRef')[0]);
+    }
+    function extractGradBg(d,gid){
+      const bg=d?.getElementsByTagNameNS?.(NSMAP.p,'bg')[0];
+      const bgPr=bg?.getElementsByTagNameNS(NSMAP.p,'bgPr')[0];
       const gf=bgPr?.getElementsByTagNameNS(NSMAP.a,'gradFill')[0];
       if(!gf)return null;
-      const gid='bg'+slideIdx;
-      const gr=resolveGradFill(gf,TC,gid);
-      if(!gr)return null;
-      return gr;
+      return resolveGradFill(gf,TC,gid);
     }
-    const bgGrad=extractGradBg(doc)||(!getSlideBackground(doc,slide,a,S.entries)?extractGradBg(lDoc||{getElementsByTagNameNS:()=>null})||extractGradBg(mDoc||{getElementsByTagNameNS:()=>null}):null);
+    // First doc in the cascade that actually defines a background wins.
+    let bgGrad=null;
+    if(hasOwnBg(doc))            bgGrad=extractGradBg(doc,'bgS'+slideIdx);
+    else if(lDoc&&hasOwnBg(lDoc))bgGrad=extractGradBg(lDoc,'bgL'+slideIdx);
+    else if(mDoc&&hasOwnBg(mDoc))bgGrad=extractGradBg(mDoc,'bgM'+slideIdx);
     if(bgGrad){
       bgDefs=`<defs>${bgGrad.defs}</defs>`;
       bgFillAttr=bgGrad.fill;
@@ -1896,7 +1955,7 @@ function renderSlideToSvg(slideIdx, W, H) {
   if(!bgImgEl&&mDoc)bgImgEl=extractBgImg(mDoc,mRels);
 
   // Render layers: master bg shapes → layout bg shapes → slide shapes
-  const masterShapes=mDoc?renderLayerShapes(mDoc,sx,sy,TC,mRels||{},S.entries,a.masterPn,defaultFont,true):'';
+  const masterShapes=mDoc?renderLayerShapes(mDoc,sx,sy,TC,mRels||{},S.entries,masterPn,defaultFont,true):'';
   const layoutShapes=lDoc?renderLayerShapes(lDoc,sx,sy,TC,lRels||{},S.entries,slide.layoutPartname,defaultFont,true):'';
 
   // Slide shapes with phMap + phLst for placeholder positioning and text defaults
@@ -1959,6 +2018,40 @@ function renderSlideSvg(slide, analysis) {
 }
 
 // ── PPTX ANALYZER ──────────────────────────────────────────
+// Parse a master's p:txStyles into {title,body,other} level arrays.
+function parseMasterTxStyles(masterDoc){
+  const txStylesEl = masterDoc.getElementsByTagNameNS(NSMAP.p,'txStyles')[0];
+  if(!txStylesEl) return null;
+  function parseTxLevels(styleEl){
+    if(!styleEl) return [];
+    const levels=[];
+    for(let i=1;i<=9;i++){
+      const lvlPr=styleEl.getElementsByTagNameNS(NSMAP.a,`lvl${i}pPr`)[0];
+      const dRPr=lvlPr?.getElementsByTagNameNS(NSMAP.a,'defRPr')[0];
+      if(dRPr){
+        const szAttr=dRPr.getAttribute('sz');
+        const bAttr=dRPr.getAttribute('b');
+        const sf=dRPr.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
+        const sc=sf?.getElementsByTagNameNS(NSMAP.a,'schemeClr')[0];
+        const srgb=sf?.getElementsByTagNameNS(NSMAP.a,'srgbClr')[0];
+        const lat=dRPr.getElementsByTagNameNS(NSMAP.a,'latin')[0];
+        levels.push({
+          sz: szAttr?+szAttr/100:null,
+          bold: bAttr==='1',
+          color: sf?(srgb?'#'+srgb.getAttribute('val'):sc?'__scheme__'+sc.getAttribute('val'):null):null,
+          font: lat?.getAttribute('typeface')||null,
+        });
+      } else levels.push(null);
+    }
+    return levels;
+  }
+  return {
+    title: parseTxLevels(txStylesEl.getElementsByTagNameNS(NSMAP.p,'titleStyle')[0]),
+    body:  parseTxLevels(txStylesEl.getElementsByTagNameNS(NSMAP.p,'bodyStyle')[0]),
+    other: parseTxLevels(txStylesEl.getElementsByTagNameNS(NSMAP.p,'otherStyle')[0]),
+  };
+}
+
 async function analyzePptx(entries) {
   const a = { slideWidth:12192000, slideHeight:6858000,
                theme:{colors:{},majorFont:'Calibri Light',minorFont:'Calibri'},
@@ -2008,52 +2101,35 @@ async function analyzePptx(entries) {
     }
   }
 
-  // Parse master txStyles — default text sizes/colors per placeholder type
-  const txStylesEl = masterDoc.getElementsByTagNameNS(NSMAP.p,'txStyles')[0];
-  if (txStylesEl) {
-    function parseTxLevels(styleEl) {
-      if (!styleEl) return [];
-      const levels = [];
-      for (let i = 1; i <= 9; i++) {
-        const lvlPr = styleEl.getElementsByTagNameNS(NSMAP.a, `lvl${i}pPr`)[0];
-        const dRPr = lvlPr?.getElementsByTagNameNS(NSMAP.a,'defRPr')[0];
-        if (dRPr) {
-          const szAttr = dRPr.getAttribute('sz');
-          const bAttr  = dRPr.getAttribute('b');
-          const sf = dRPr.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
-          // color elements are INSIDE solidFill, not directly on dRPr
-          const sc   = sf?.getElementsByTagNameNS(NSMAP.a,'schemeClr')[0];
-          const srgb = sf?.getElementsByTagNameNS(NSMAP.a,'srgbClr')[0];
-          const lat = dRPr.getElementsByTagNameNS(NSMAP.a,'latin')[0];
-          levels.push({
-            sz:    szAttr ? +szAttr/100 : null,
-            bold:  bAttr === '1',
-            color: sf ? (srgb ? '#'+srgb.getAttribute('val') : sc ? '__scheme__'+sc.getAttribute('val') : null) : null,
-            font:  lat?.getAttribute('typeface') || null,
-          });
-        } else {
-          levels.push(null);
-        }
-      }
-      return levels;
-    }
-    a.theme.txStyles = {
-      title: parseTxLevels(txStylesEl.getElementsByTagNameNS(NSMAP.p,'titleStyle')[0]),
-      body:  parseTxLevels(txStylesEl.getElementsByTagNameNS(NSMAP.p,'bodyStyle')[0]),
-      other: parseTxLevels(txStylesEl.getElementsByTagNameNS(NSMAP.p,'otherStyle')[0]),
-    };
-  }
+  // Parse txStyles + clrMap for the PRIMARY master (kept for backward-compat / AI payload)
+  a.theme.txStyles = parseMasterTxStyles(masterDoc);
 
-  // Layouts
-  for (const [,rel] of Object.entries(masterRels)) {
-    if (!rel.type.endsWith('/slideLayout')) continue;
-    const lpn = resolveTgt(masterPn, rel.target);
-    const ld = entries[lpn]; if (!ld) continue;
-    const ldoc = parseXml(ld);
-    const cSld = xq1(ldoc,'p','cSld');
-    const name = cSld?.getAttribute('name')||'';
-    const ltype = ldoc.documentElement.getAttribute('type')||'';
-    a.layouts.push({name, type:ltype, partname:lpn});
+  // Multi-master support: real templates (e.g. ROOTS) ship several masters with
+  // different backgrounds AND different clrMaps (dark masters invert bg1/tx1).
+  // Build a registry of every master and map each layout → its owning master.
+  a.masters = {};
+  a.layoutToMaster = {};
+  const allMasterRels = Object.values(presRels).filter(r=>r.type.endsWith('/slideMaster'));
+  for (const mr of allMasterRels) {
+    const mpn = resolveTgt('ppt/presentation.xml', mr.target);
+    const mdata = entries[mpn]; if(!mdata) continue;
+    const mdoc = parseXml(mdata);
+    const mrels = parseRels(entries[relsKey(mpn)]);
+    const cmEl = mdoc.getElementsByTagNameNS(NSMAP.p,'clrMap')[0];
+    a.masters[mpn] = { partname:mpn, clrMap:buildClrMap(cmEl), txStyles:parseMasterTxStyles(mdoc) };
+    // Enumerate this master's layouts (and remember the owning master)
+    for (const [,rel] of Object.entries(mrels)) {
+      if (!rel.type.endsWith('/slideLayout')) continue;
+      const lpn = resolveTgt(mpn, rel.target);
+      a.layoutToMaster[lpn] = mpn;
+      if (a.layouts.some(l=>l.partname===lpn)) continue;
+      const ld = entries[lpn]; if (!ld) continue;
+      const ldoc = parseXml(ld);
+      const cSld = xq1(ldoc,'p','cSld');
+      const name = cSld?.getAttribute('name')||'';
+      const ltype = ldoc.documentElement.getAttribute('type')||'';
+      a.layouts.push({name, type:ltype, partname:lpn});
+    }
   }
 
   // Slides
@@ -2066,11 +2142,13 @@ async function analyzePptx(entries) {
     const sdoc = parseXml(sd);
     const sRels = parseRels(entries[relsKey(spn)]);
     const lRel = Object.values(sRels).find(r=>r.type.endsWith('/slideLayout'));
+    const layoutPartname = lRel ? resolveTgt(spn, lRel.target) : '';
     const analyzed = analyzeSlideShapes(sdoc, sRels, entries);
     a.slides.push({
       index: a.slides.length,
       partname: spn,
-      layoutPartname: lRel ? resolveTgt(spn, lRel.target) : '',
+      layoutPartname,
+      masterPartname: a.layoutToMaster[layoutPartname] || masterPn,
       title: extractTitle(sdoc),
       counts: {
         shapes:analyzed.shapes, images:analyzed.images,
@@ -2652,7 +2730,10 @@ function renderRail() {
     if(c.charts) chips.push(`<span class="meta-chip chart"><i class="fa-solid fa-chart-bar"></i> ${c.charts}</span>`);
     if(c.tables) chips.push(`<span class="meta-chip table"><i class="fa-solid fa-table"></i> ${c.tables}</span>`);
     if(c.images) chips.push(`<span class="meta-chip img"><i class="fa-solid fa-image"></i> ${c.images}</span>`);
-    const svg = renderSlideSvg(s, S.analysis);
+    // Use the SAME real renderer as the main stage so thumbnails match 1:1
+    let svg;
+    try { svg = renderSlideToSvg(i, 320, 180); }
+    catch(_) { svg = renderSlideSvg(s, S.analysis); }
     return `<div class="slide-thumb${i===S.activeSlide?' active':''}" data-idx="${i}">
       <div class="slide-thumb-preview">${svg}</div>
       <div class="slide-thumb-info">

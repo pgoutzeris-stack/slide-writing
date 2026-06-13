@@ -853,7 +853,26 @@ function binToDataUrl(data, key) {
 }
 
 // Build a foreignObject HTML text block — proper rendering with CSS
-function foText(txBody, box, TC, defaultFont, defaultTextColor) {
+// Resolve +mj-lt / +mn-lt typeface references to actual font names
+function resolveTypeface(tf, TC) {
+  if (!tf) return null;
+  if (tf.startsWith('+mj')) return TC._maj || 'Calibri Light';
+  if (tf.startsWith('+mn')) return TC._min || 'Calibri';
+  return tf;
+}
+
+// Resolve a txStyle level entry's color (may be '__scheme__val')
+function resolveTxStyleColor(entry, TC) {
+  if (!entry?.color) return null;
+  if (entry.color.startsWith('__scheme__')) {
+    const slot = entry.color.slice(10);
+    const mapped = (TC._schemeSlot||{})[slot] || slot;
+    return '#' + (TC[mapped] || TC[slot] || '');
+  }
+  return entry.color;
+}
+
+function foText(txBody, box, TC, defaultFont, defaultTextColor, txLevels) {
   if(!txBody)return'';
   const{x,y,w,h}=box;
   if(w<2||h<2)return'';
@@ -861,7 +880,6 @@ function foText(txBody, box, TC, defaultFont, defaultTextColor) {
   const bodyPr=txBody.getElementsByTagNameNS(NSMAP.a,'bodyPr')[0];
   const anchor=bodyPr?.getAttribute('anchor')||'t';
   const valign={t:'flex-start',ctr:'center',b:'flex-end'}[anchor]||'flex-start';
-  // inset margins (EMU) — default 91440 horiz, 45720 vert
   const mL=+(bodyPr?.getAttribute('marL')??91440)/12192000*960;
   const mR=+(bodyPr?.getAttribute('marR')??91440)/12192000*960;
   const mT=+(bodyPr?.getAttribute('marT')??45720)/6858000*540;
@@ -869,46 +887,87 @@ function foText(txBody, box, TC, defaultFont, defaultTextColor) {
   const vert=bodyPr?.getAttribute('vert');
   const isVert=vert&&vert!=='horz'&&vert!=='';
 
+  // lstStyle — shape-level per-level defaults (override txStyles)
+  const lstStyle=txBody.getElementsByTagNameNS(NSMAP.a,'lstStyle')[0];
+  function lstLvlSz(lvl) {
+    const lp=lstStyle?.getElementsByTagNameNS(NSMAP.a,`lvl${lvl+1}pPr`)[0];
+    const dr=lp?.getElementsByTagNameNS(NSMAP.a,'defRPr')[0];
+    const s=dr?.getAttribute('sz'); return s?+s/100:null;
+  }
+  function lstLvlColor(lvl) {
+    const lp=lstStyle?.getElementsByTagNameNS(NSMAP.a,`lvl${lvl+1}pPr`)[0];
+    const dr=lp?.getElementsByTagNameNS(NSMAP.a,'defRPr')[0];
+    if(!dr)return null;
+    const sf=dr.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
+    return sf?resolveClr(sf,TC)||null:null;
+  }
+
   let pHtml='';
   for(const para of txBody.getElementsByTagNameNS(NSMAP.a,'p')){
     const pPr=para.getElementsByTagNameNS(NSMAP.a,'pPr')[0];
     const algn=pPr?.getAttribute('algn')||'';
     const ta={l:'left',ctr:'center',r:'right',just:'justify',dist:'justify'}[algn]||'left';
-    const spc=+(pPr?.getElementsByTagNameNS(NSMAP.a,'spcPct')?.[0]?.getAttribute('val')??100000)/100000;
+    const spcEl=pPr?.getElementsByTagNameNS(NSMAP.a,'spcPct')?.[0]||pPr?.getElementsByTagNameNS(NSMAP.a,'spcAft')?.[0];
+    const spc=+(spcEl?.getAttribute('val')??100000)/100000;
+    const lvl=+(pPr?.getAttribute('lvl')||0);
+
+    // Resolve default sz/color/font for this level: run rPr > para defRPr > lstStyle > txLevels
+    const txLvlEntry = txLevels?.[Math.min(lvl, (txLevels.length||1)-1)] || txLevels?.[0] || null;
+    let defSz = lstLvlSz(lvl) || txLvlEntry?.sz || null;
+    let defColor = lstLvlColor(lvl) || resolveTxStyleColor(txLvlEntry, TC) || null;
+    let defFont = txLvlEntry?.font ? resolveTypeface(txLvlEntry.font, TC) : null;
+    let defBold = txLvlEntry?.bold || false;
+
+    // paragraph-level defRPr overrides txStyle
+    const paraDefRPr = para.getElementsByTagNameNS(NSMAP.a,'defRPr')[0];
+    if(paraDefRPr) {
+      const s=paraDefRPr.getAttribute('sz'); if(s)defSz=+s/100;
+      const b=paraDefRPr.getAttribute('b'); if(b==='1')defBold=true;
+      const sf=paraDefRPr.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
+      if(sf){const c=resolveClr(sf,TC);if(c)defColor=c;}
+      const lat=paraDefRPr.getElementsByTagNameNS(NSMAP.a,'latin')[0];
+      if(lat){const tf=resolveTypeface(lat.getAttribute('typeface'),TC);if(tf)defFont=tf;}
+    }
+
     let runHtml='';
-    // default size from list style or body default
-    let defSz=null;
-    const defRPr=para.getElementsByTagNameNS(NSMAP.a,'defRPr')[0];
-    if(defRPr){const s=defRPr.getAttribute('sz');if(s)defSz=+s/100;}
     for(const run of para.getElementsByTagNameNS(NSMAP.a,'r')){
       const rPr=run.getElementsByTagNameNS(NSMAP.a,'rPr')[0];
       const t=run.getElementsByTagNameNS(NSMAP.a,'t')[0];
       const txt=t?.textContent||'';
       if(!txt)continue;
-      const sz=rPr?.getAttribute('sz');
-      const fs=sz?+sz/100:(defSz||14);
-      const bold=rPr?.getAttribute('b')==='1';
+
+      const szAttr=rPr?.getAttribute('sz');
+      const fs=szAttr?+szAttr/100:(defSz||18);
+
+      const bAttr=rPr?.getAttribute('b');
+      const bold=bAttr==='1'||(bAttr!=='0'&&defBold);
       const ital=rPr?.getAttribute('i')==='1';
       const uline=rPr?.getAttribute('u')==='sng'||rPr?.getAttribute('u')==='dbl';
       const strike=rPr?.getAttribute('strike')==='sngStrike';
+
+      // Color: rPr solidFill > level default > shape style color > dk1
       const sf=rPr?.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
       let color=sf?resolveClr(sf,TC)||null:null;
-      if(!color)color=defaultTextColor||'#'+(TC.dk1||'000000');
-      const latin=rPr?.getElementsByTagNameNS(NSMAP.a,'latin')[0];
-      const ff=latin?.getAttribute('typeface')||defaultFont||'inherit';
-      const safe=ff.replace(/['"<>&]/g,'');
-      const style=`font-size:${fs}px;color:${color};font-family:'${safe}',system-ui,sans-serif;${bold?'font-weight:700;':''}${ital?'font-style:italic;':''}${uline?'text-decoration:underline;':''}${strike?'text-decoration:line-through;':''}white-space:pre-wrap;`;
+      if(!color)color=defColor||defaultTextColor||'#'+(TC.dk1||'000000');
+
+      // Font
+      const latinEl=rPr?.getElementsByTagNameNS(NSMAP.a,'latin')[0];
+      const rawTf=latinEl?.getAttribute('typeface');
+      const ff=rawTf?resolveTypeface(rawTf,TC):(defFont||defaultFont||'inherit');
+      const safe=(ff||'inherit').replace(/['"<>&]/g,'');
+
+      const style=`font-size:${fs}px;color:${color};font-family:'${safe}',system-ui,sans-serif;${bold?'font-weight:700;':'font-weight:400;'}${ital?'font-style:italic;':''}${uline?'text-decoration:underline;':''}${strike?'text-decoration:line-through;':''}white-space:pre-wrap;`;
       const escaped=txt.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       runHtml+=`<span style="${style}">${escaped}</span>`;
     }
-    // Line break elements
+    // Line breaks
     for(const br of para.getElementsByTagNameNS(NSMAP.a,'br'))runHtml+='<br/>';
     if(runHtml){
-      pHtml+=`<div style="text-align:${ta};line-height:${(spc*1.25).toFixed(2)};margin-bottom:0.1em;">${runHtml}</div>`;
-    }else{
-      // empty paragraph = spacing
-      const empSz=defSz||12;
-      pHtml+=`<div style="height:${(empSz*0.5).toFixed(1)}px"></div>`;
+      const lh=Math.max(1.1,(spc*1.25));
+      const indPx=lvl>0?lvl*16:0;
+      pHtml+=`<div style="text-align:${ta};line-height:${lh.toFixed(2)};margin-bottom:0.1em;${indPx?`padding-left:${indPx}px;`:''}">${runHtml}</div>`;
+    } else {
+      pHtml+=`<div style="height:${((defSz||12)*0.5).toFixed(1)}px"></div>`;
     }
   }
   if(!pHtml)return'';
@@ -1049,7 +1108,13 @@ function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap){
   }else{
     shape=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
   }
-  const txt=foText(txBody,b,TC,defaultFont,styleTextClr);
+  // Pick txStyle levels: title→titleStyle, body/obj/dt/ftr→bodyStyle, else otherStyle
+  const isTitlePh = phType==='title'||phType==='ctrTitle';
+  const isBodyPh  = phType==='body'||phType==='obj'||phType===''||phType==='subTitle';
+  const txLevels  = isTitlePh ? (TC._txSty?.title)
+                  : isBodyPh  ? (TC._txSty?.body)
+                  : (TC._txSty?.other);
+  const txt=foText(txBody,b,TC,defaultFont,styleTextClr,txLevels);
   return shape+txt;
 }
 
@@ -1218,7 +1283,13 @@ function renderSlideToSvg(slideIdx, W, H) {
   const slide=a.slides[slideIdx]; if(!slide)return'';
   const SW=a.slideWidth||12192000, SH=a.slideHeight||6858000;
   const sx=W/SW, sy=H/SH;
-  const TC=a.theme.colors||{};
+  const TC={
+    ...(a.theme.colors||{}),
+    _maj: a.theme.majorFont||'Calibri Light',
+    _min: a.theme.minorFont||'Calibri',
+    _txSty: a.theme.txStyles||null,
+    _schemeSlot: {tx1:'dk1',tx2:'dk2',bg1:'lt1',bg2:'lt2',phClr:'dk1',dk1:'dk1',dk2:'dk2',lt1:'lt1',lt2:'lt2',accent1:'accent1',accent2:'accent2',accent3:'accent3',accent4:'accent4',accent5:'accent5',accent6:'accent6'},
+  };
   const defaultFont=a.theme.minorFont||'Calibri';
 
   const slideData=S.entries?.[slide.partname];
@@ -1354,6 +1425,41 @@ async function analyzePptx(entries) {
       if (maj){const l=maj.getElementsByTagNameNS(NSMAP.a,'latin')[0];if(l)a.theme.majorFont=l.getAttribute('typeface')||'Calibri Light';}
       if (min){const l=min.getElementsByTagNameNS(NSMAP.a,'latin')[0];if(l)a.theme.minorFont=l.getAttribute('typeface')||'Calibri';}
     }
+  }
+
+  // Parse master txStyles — default text sizes/colors per placeholder type
+  const txStylesEl = masterDoc.getElementsByTagNameNS(NSMAP.p,'txStyles')[0];
+  if (txStylesEl) {
+    function parseTxLevels(styleEl) {
+      if (!styleEl) return [];
+      const levels = [];
+      for (let i = 1; i <= 9; i++) {
+        const lvlPr = styleEl.getElementsByTagNameNS(NSMAP.a, `lvl${i}pPr`)[0];
+        const dRPr = lvlPr?.getElementsByTagNameNS(NSMAP.a,'defRPr')[0];
+        if (dRPr) {
+          const szAttr = dRPr.getAttribute('sz');
+          const bAttr  = dRPr.getAttribute('b');
+          const sf = dRPr.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
+          const sc = dRPr.getElementsByTagNameNS(NSMAP.a,'schemeClr')[0];
+          const srgb = dRPr.getElementsByTagNameNS(NSMAP.a,'srgbClr')[0];
+          const lat = dRPr.getElementsByTagNameNS(NSMAP.a,'latin')[0];
+          levels.push({
+            sz:    szAttr ? +szAttr/100 : null,
+            bold:  bAttr === '1',
+            color: sf ? (srgb ? '#'+srgb.getAttribute('val') : sc ? '__scheme__'+sc.getAttribute('val') : null) : null,
+            font:  lat?.getAttribute('typeface') || null,
+          });
+        } else {
+          levels.push(null);
+        }
+      }
+      return levels;
+    }
+    a.theme.txStyles = {
+      title: parseTxLevels(txStylesEl.getElementsByTagNameNS(NSMAP.p,'titleStyle')[0]),
+      body:  parseTxLevels(txStylesEl.getElementsByTagNameNS(NSMAP.p,'bodyStyle')[0]),
+      other: parseTxLevels(txStylesEl.getElementsByTagNameNS(NSMAP.p,'otherStyle')[0]),
+    };
   }
 
   // Layouts

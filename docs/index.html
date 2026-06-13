@@ -700,10 +700,17 @@ function analyzeShapeNode(node, sRels, entries, acc) {
     const ph = node.getElementsByTagNameNS(NSMAP.p,'ph')[0];
     const phType = ph?.getAttribute('type')||'';
     const prstGeom = node.getElementsByTagNameNS(NSMAP.a,'prstGeom')[0];
-    const prst = prstGeom?.getAttribute('prst')||'rect';
+    const custGeom = node.getElementsByTagNameNS(NSMAP.a,'custGeom')[0];
+    const prst = prstGeom?.getAttribute('prst')||(custGeom?'custom':'rect');
+    const cNvSpPr = node.getElementsByTagNameNS(NSMAP.p,'cNvSpPr')[0];
+    const isTxBox = cNvSpPr?.getAttribute('txBox')==='1';
     const isPlaceholder = !!ph;
-    const label = phType ? (PH_LABELS[phType]||'Platzhalter') : (PRST_LABELS[prst]||'Form');
-    acc.elements.push({type:'shape', label, prst, phType, isPlaceholder});
+    // Recognize native sub-types: placeholder > freeform > text box > preset shape
+    const label = phType ? (PH_LABELS[phType]||'Platzhalter')
+                : custGeom ? 'Freiform'
+                : isTxBox ? 'Textfeld'
+                : (PRST_LABELS[prst]||'Form');
+    acc.elements.push({type:'shape', label, prst, phType, isPlaceholder, isTextBox:isTxBox, isFreeform:!!custGeom});
     if (box) acc.shapeItems.push({...box, shapeType: phType||prst, isPlaceholder});
 
   } else if (ln==='pic') {
@@ -740,9 +747,11 @@ function analyzeShapeNode(node, sRels, entries, acc) {
       if (box) acc.shapeItems.push({...box, shapeType:'table'});
 
     } else {
-      // Other graphic (SmartArt, diagram, etc.)
+      // SmartArt / diagram / OLE object — recognize as a native graphic element
+      const isDiagram = uri.includes('/diagram');
       acc.shapes++;
-      if (box) acc.shapeItems.push({...box, shapeType:'other'});
+      acc.elements.push({type:'graphic', label: isDiagram?'SmartArt':'Grafik-Objekt'});
+      if (box) acc.shapeItems.push({...box, shapeType: isDiagram?'smartart':'other'});
     }
 
   } else if (ln==='cxnSp') {
@@ -884,10 +893,105 @@ function svgBox(el,sx,sy){
   };
 }
 
+// ── TIFF DECODER ────────────────────────────────────────────
+// Browsers can't display TIFF natively. Decode the common variants (uncompressed,
+// PackBits, LZW; RGB/RGBA/grayscale/palette; 8 bit/sample) to RGBA → canvas → PNG.
+function _tiffUnpackBits(data){
+  const out=[]; let i=0;
+  while(i<data.length){
+    let n=data[i++]; if(n===undefined)break;
+    if(n<128){ for(let j=0;j<=n&&i<data.length;j++)out.push(data[i++]); }
+    else if(n>128){ const b=data[i++]; for(let j=0;j<257-n;j++)out.push(b); }
+    // n===128 → no-op
+  }
+  return Uint8Array.from(out);
+}
+function _tiffLzw(data){
+  const out=[]; let dict,codeW,prev;
+  const reset=()=>{dict=[];for(let i=0;i<256;i++)dict.push([i]);dict.push(null);dict.push(null);codeW=9;prev=null;};
+  reset();
+  let bitBuf=0,bitCnt=0,pos=0;
+  const next=()=>{ while(bitCnt<codeW){ if(pos>=data.length)return -1; bitBuf=(bitBuf<<8)|data[pos++]; bitCnt+=8; } bitCnt-=codeW; return (bitBuf>>bitCnt)&((1<<codeW)-1); };
+  let code;
+  while((code=next())!==-1){
+    if(code===256){ reset(); continue; }
+    if(code===257) break;
+    let entry;
+    if(dict[code]!==undefined&&dict[code]!==null) entry=dict[code];
+    else if(prev) entry=prev.concat(prev[0]);
+    else break;
+    for(let k=0;k<entry.length;k++)out.push(entry[k]);
+    if(prev) dict.push(prev.concat(entry[0]));
+    prev=entry;
+    if(dict.length+1>=(1<<codeW)&&codeW<12) codeW++; // TIFF early-change
+  }
+  return Uint8Array.from(out);
+}
+function decodeTiff(bytes){
+  try{
+    const u8=bytes instanceof Uint8Array?bytes:new Uint8Array(bytes);
+    if(u8.length<8)return null;
+    const bom=String.fromCharCode(u8[0],u8[1]);
+    const le=bom==='II'?true:bom==='MM'?false:null; if(le===null)return null;
+    const dv=new DataView(u8.buffer,u8.byteOffset,u8.byteLength);
+    const u16=o=>dv.getUint16(o,le), u32=o=>dv.getUint32(o,le);
+    if(u16(2)!==42)return null;
+    const ifd=u32(4), n=u16(ifd);
+    const TS={1:1,2:1,3:2,4:4,5:8,6:1,7:1,8:2,9:4,10:8,11:4,12:8};
+    const tags={};
+    for(let i=0;i<n;i++){
+      const e=ifd+2+i*12; const tag=u16(e),type=u16(e+2),cnt=u32(e+4);
+      const unit=TS[type]||1, sz=unit*cnt; let vo=(sz>4)?u32(e+8):e+8;
+      const vals=[];
+      for(let k=0;k<cnt;k++){const o=vo+k*unit;
+        vals.push(type===3?u16(o):type===4?u32(o):(type===1||type===6||type===7)?u8[o]:type===8?dv.getInt16(o,le):type===9?dv.getInt32(o,le):u32(o));}
+      tags[tag]=vals;
+    }
+    const g=(t,d)=>tags[t]?tags[t][0]:d;
+    const W=g(256),H=g(257); if(!W||!H||W*H>20000000)return null;
+    const bps=tags[258]||[8]; if(bps.some(b=>b!==8))return null;
+    const spp=g(277,bps.length||1), comp=g(259,1), photo=g(262,2), predictor=g(317,1);
+    const stripOff=tags[273]||[], stripCnt=tags[279]||[], rps=g(278,H);
+    if(!stripOff.length)return null;
+    const cmap=tags[320];
+    const dec=(d)=>comp===1?d:comp===32773?_tiffUnpackBits(d):comp===5?_tiffLzw(d):null;
+    const out=new Uint8ClampedArray(W*H*4); let row=0;
+    for(let s=0;s<stripOff.length;s++){
+      const off=stripOff[s], len=stripCnt[s]||(u8.length-off);
+      let strip=dec(u8.subarray(off,off+len)); if(!strip)return null;
+      const rows=Math.min(rps,H-row), bpr=W*spp;
+      for(let r=0;r<rows;r++){
+        const rs=r*bpr;
+        if(predictor===2)for(let x=spp;x<bpr;x++)strip[rs+x]=(strip[rs+x]+strip[rs+x-spp])&0xff;
+        const py=row+r;
+        for(let x=0;x<W;x++){
+          const si=rs+x*spp; let R,G,B,A=255;
+          if(photo===2){R=strip[si];G=strip[si+1];B=strip[si+2];if(spp>=4)A=strip[si+3];}
+          else if(photo===3&&cmap){const idx=strip[si],c=cmap.length/3;R=cmap[idx]>>8;G=cmap[c+idx]>>8;B=cmap[2*c+idx]>>8;}
+          else{let v=strip[si];if(photo===0)v=255-v;R=G=B=v;if(spp>=2)A=strip[si+1];}
+          const di=(py*W+x)*4; out[di]=R;out[di+1]=G;out[di+2]=B;out[di+3]=A;
+        }
+      }
+      row+=rows; if(row>=H)break;
+    }
+    return {width:W,height:H,rgba:out};
+  }catch(e){return null;}
+}
+function tiffToDataUrl(bytes){
+  const d=decodeTiff(bytes); if(!d)return null;
+  try{
+    const cv=document.createElement('canvas'); cv.width=d.width; cv.height=d.height;
+    const ctx=cv.getContext('2d'); const id=ctx.createImageData(d.width,d.height);
+    id.data.set(d.rgba); ctx.putImageData(id,0,0);
+    return cv.toDataURL('image/png');
+  }catch(e){return null;}
+}
+
 // Convert binary Uint8Array to base64 data URL for images
 function binToDataUrl(data, key) {
   if(!data||!data.length)return null;
   const ext=(key||'').split('.').pop().toLowerCase();
+  if(ext==='tif'||ext==='tiff') return tiffToDataUrl(data);
   const mime={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',bmp:'image/bmp',svg:'image/svg+xml',webp:'image/webp'}[ext];
   if(!mime||mime.includes('svg'))return null; // skip SVG and unknown
   // chunk btoa to avoid call stack overflow on large images

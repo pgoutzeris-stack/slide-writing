@@ -853,7 +853,7 @@ function binToDataUrl(data, key) {
 }
 
 // Build a foreignObject HTML text block — proper rendering with CSS
-function foText(txBody, box, TC, defaultFont) {
+function foText(txBody, box, TC, defaultFont, defaultTextColor) {
   if(!txBody)return'';
   const{x,y,w,h}=box;
   if(w<2||h<2)return'';
@@ -893,8 +893,7 @@ function foText(txBody, box, TC, defaultFont) {
       const strike=rPr?.getAttribute('strike')==='sngStrike';
       const sf=rPr?.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
       let color=sf?resolveClr(sf,TC)||null:null;
-      if(!color){const sc=rPr?.getElementsByTagNameNS(NSMAP.a,'schemeClr')[0]||rPr?.getElementsByTagNameNS(NSMAP.a,'srgbClr')[0];if(sc)color=resolveClr({getElementsByTagNameNS:(_,n)=>n===sc.localName?[sc]:[]},...[TC])||null;}
-      if(!color)color='#'+(TC.dk1||'000000');
+      if(!color)color=defaultTextColor||'#'+(TC.dk1||'000000');
       const latin=rPr?.getElementsByTagNameNS(NSMAP.a,'latin')[0];
       const ff=latin?.getAttribute('typeface')||defaultFont||'inherit';
       const safe=ff.replace(/['"<>&]/g,'');
@@ -928,14 +927,67 @@ function shapeOutline(spPr,TC){
   return{stroke,sw};
 }
 
-function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont){
-  const b=svgBox(el,sx,sy); if(!b)return'';
-  const{x,y,w,h,rot,flipH,flipV}=b;
-  const spPr=el.getElementsByTagNameNS(NSMAP.p,'spPr')[0];
-  const prstGeom=el.getElementsByTagNameNS(NSMAP.a,'prstGeom')[0];
-  const prst=prstGeom?.getAttribute('prst')||'rect';
+// Approximate shape fill from p:style > a:fillRef (theme format scheme)
+function getStyleFill(spEl, TC){
+  const style=spEl.getElementsByTagNameNS(NSMAP.p,'style')[0];
+  if(!style)return null;
+  const fillRef=style.getElementsByTagNameNS(NSMAP.a,'fillRef')[0];
+  if(!fillRef)return null;
+  const idx=+(fillRef.getAttribute('idx')||0);
+  if(idx===0)return'none';
+  const c=resolveClr(fillRef,TC);
+  if(!c||c==='none')return null;
+  const hex=c.replace('#','');
+  if(hex.length!==6)return c;
+  const r=parseInt(hex.slice(0,2),16),g=parseInt(hex.slice(2,4),16),b=parseInt(hex.slice(4,6),16);
+  // idx 1 = subtle (very light), idx 2 = moderate (~65%), idx 3+ = solid
+  if(idx===1)return`rgba(${r},${g},${b},0.1)`;
+  if(idx===2)return`rgba(${r},${g},${b},0.65)`;
+  return c;
+}
+
+// Get default text color from p:style > a:fontRef
+function getStyleTextColor(spEl, TC){
+  const style=spEl.getElementsByTagNameNS(NSMAP.p,'style')[0];
+  if(!style)return null;
+  const fontRef=style.getElementsByTagNameNS(NSMAP.a,'fontRef')[0];
+  if(!fontRef)return null;
+  return resolveClr(fontRef,TC)||null;
+}
+
+// Build a map {phType → box, 'idx:N' → box} from a slide layout/master spTree
+function buildPhMap(doc, sx, sy){
+  const map={};
+  const tree=xq1(doc,'p','spTree');
+  if(!tree)return map;
+  for(const sp of tree.children){
+    if(sp.localName!=='sp')continue;
+    const ph=sp.getElementsByTagNameNS(NSMAP.p,'ph')[0];
+    if(!ph)continue;
+    const ptype=ph.getAttribute('type')||'body';
+    const pidx=ph.getAttribute('idx')||'';
+    const b=svgBox(sp,sx,sy);
+    if(!b)continue;
+    if(ptype&&!map['t:'+ptype])map['t:'+ptype]=b;
+    if(pidx!==''&&!map['i:'+pidx])map['i:'+pidx]=b;
+  }
+  return map;
+}
+
+function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap){
+  let b=svgBox(el,sx,sy);
   const ph=el.getElementsByTagNameNS(NSMAP.p,'ph')[0];
   const phType=ph?.getAttribute('type')||'';
+  const phIdx=ph?.getAttribute('idx')||'';
+  // Placeholder with no xfrm → look up from layout/master map
+  if(!b&&ph&&phMap){
+    b=phMap['t:'+phType]||phMap['i:'+phIdx]||null;
+  }
+  if(!b)return'';
+  const{x,y,w,h,rot,flipH,flipV}=b;
+  const spPr=el.getElementsByTagNameNS(NSMAP.p,'spPr')[0];
+  const prstGeom=spPr?.getElementsByTagNameNS(NSMAP.a,'prstGeom')[0];
+  const prst=prstGeom?.getAttribute('prst')||(ph?'rect':'rect');
   const txBody=el.getElementsByTagNameNS(NSMAP.p,'txBody')[0];
 
   // Connectors → simple line
@@ -943,12 +995,17 @@ function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont){
   if(CONN.includes(prst)){
     const{stroke,sw}=shapeOutline(spPr,TC);
     const sc=stroke==='none'?'#94a3b8':stroke;
-    return`<line x1="${x.toFixed(1)}" y1="${(y+h).toFixed(1)}" x2="${(x+w).toFixed(1)}" y2="${y.toFixed(1)}" stroke="${sc}" stroke-width="${Math.max(0.5,sw)}"/>`;
+    const x1=flipH?x+w:x, y1=flipV?y+h:y, x2=flipH?x:x+w, y2=flipV?y:y+h;
+    return`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${sc}" stroke-width="${Math.max(0.5,sw)}"/>`;
   }
 
-  const fallback=phType?'none':'rgba(180,180,180,0.15)';
-  const fill=resolveFill(spPr,TC,fallback);
+  // Fill: explicit spPr > solidFill/gradFill/noFill, else style fillRef, else transparent for ph
+  const explicitFill=resolveFill(spPr,TC,null);
+  const styleFill=explicitFill===null?getStyleFill(el,TC):null;
+  const fill=explicitFill!==null?explicitFill:(styleFill||( phType?'none':'rgba(180,180,180,0.08)'));
   const{stroke,sw}=shapeOutline(spPr,TC);
+  // Default text color from style fontRef
+  const styleTextClr=getStyleTextColor(el,TC);
 
   const cx=x+w/2, cy=y+h/2;
   let transforms=[];
@@ -992,7 +1049,7 @@ function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont){
   }else{
     shape=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
   }
-  const txt=foText(txBody,b,TC,defaultFont);
+  const txt=foText(txBody,b,TC,defaultFont,styleTextClr);
   return shape+txt;
 }
 
@@ -1070,45 +1127,89 @@ function renderGraphicFrameSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont){
   return'';
 }
 
-function renderNodeSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont){
+function renderNodeSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap){
   const ln=el.localName;
-  if(ln==='sp')return renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont);
+  if(ln==='sp')return renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap);
   if(ln==='pic')return renderPicSvg(el,sx,sy,sRels,entries);
   if(ln==='graphicFrame')return renderGraphicFrameSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont);
   if(ln==='cxnSp'){
     const b=svgBox(el,sx,sy);if(!b)return'';
-    const{x,y,w,h}=b;
+    const{x,y,w,h,flipH,flipV}=b;
     const spPr=el.getElementsByTagNameNS(NSMAP.p,'spPr')[0];
     const{stroke,sw}=shapeOutline(spPr,TC);
     const sc=stroke==='none'?'#94a3b8':stroke;
-    return`<line x1="${x.toFixed(1)}" y1="${(y+h).toFixed(1)}" x2="${(x+w).toFixed(1)}" y2="${y.toFixed(1)}" stroke="${sc}" stroke-width="${Math.max(0.5,sw)}"/>`;
+    const x1=flipH?x+w:x, y1=flipV?y+h:y, x2=flipH?x:x+w, y2=flipV?y:y+h;
+    return`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${sc}" stroke-width="${Math.max(0.5,sw)}"/>`;
   }
   if(ln==='grpSp'){
     let out='';
-    for(const ch of el.children)out+=renderNodeSvg(ch,sx,sy,TC,sRels,entries,slidePn,defaultFont);
+    for(const ch of el.children)out+=renderNodeSvg(ch,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap);
     return out;
   }
   return'';
 }
 
-// Resolve slide background: check slide → layout → master
+// Render all non-placeholder shapes from a spTree (master/layout background graphics)
+function renderLayerShapes(doc,sx,sy,TC,rels,entries,pn,defaultFont,skipPh){
+  const tree=xq1(doc,'p','spTree');
+  if(!tree)return'';
+  let out='';
+  for(const ch of tree.children){
+    if(skipPh&&ch.localName==='sp'){
+      const ph=ch.getElementsByTagNameNS(NSMAP.p,'ph')[0];
+      if(ph)continue;
+    }
+    out+=renderNodeSvg(ch,sx,sy,TC,rels,entries,pn,defaultFont,{});
+  }
+  return out;
+}
+
+// Resolve slide background: cascade slide → layout → master → theme lt1
 function getSlideBackground(slideDoc, slide, a, entries) {
   const TC=a.theme.colors||{};
-  // 1. Slide-level explicit background
-  const bgPr=slideDoc.getElementsByTagNameNS(NSMAP.p,'bgPr')[0];
-  if(bgPr){
-    const sf=bgPr.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
-    if(sf){const c=resolveClr(sf,TC);if(c)return c;}
-    const gf=bgPr.getElementsByTagNameNS(NSMAP.a,'gradFill')[0];
-    if(gf){const gs=gf.getElementsByTagNameNS(NSMAP.a,'gs')[0];if(gs){const c=resolveClr(gs,TC);if(c)return c;}}
-    // blipFill (image bg) — return neutral
-    if(bgPr.getElementsByTagNameNS(NSMAP.a,'blipFill')[0])return null; // handled separately
+
+  function extractBg(doc){
+    // Check <p:bg><p:bgPr> for solid/grad/blip
+    const bg=doc.getElementsByTagNameNS(NSMAP.p,'bg')[0];
+    const bgPr=bg?.getElementsByTagNameNS(NSMAP.p,'bgPr')[0]
+              ||doc.getElementsByTagNameNS(NSMAP.p,'bgPr')[0];
+    if(bgPr){
+      if(bgPr.getElementsByTagNameNS(NSMAP.a,'blipFill')[0])return'__blip__';
+      const sf=bgPr.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
+      if(sf){const c=resolveClr(sf,TC);if(c)return c;}
+      const gf=bgPr.getElementsByTagNameNS(NSMAP.a,'gradFill')[0];
+      if(gf){
+        // pick the stop with lowest position for dominant color
+        const stops=[...gf.getElementsByTagNameNS(NSMAP.a,'gs')].sort((a,b)=>+(a.getAttribute('pos')||0)-(+(b.getAttribute('pos')||0)));
+        for(const gs of stops){const c=resolveClr(gs,TC);if(c)return c;}
+      }
+    }
+    // Check <p:bg><p:bgRef> or bare <p:bgRef>
+    const bgRef=bg?.getElementsByTagNameNS(NSMAP.p,'bgRef')[0]
+               ||doc.getElementsByTagNameNS(NSMAP.p,'bgRef')[0];
+    if(bgRef){const c=resolveClr(bgRef,TC);if(c)return c;}
+    return null; // not found in this doc
   }
-  // 2. Check if slide has <p:bg> with <p:bgRef> referencing a fill from master theme
-  const bgRef=slideDoc.getElementsByTagNameNS(NSMAP.p,'bgRef')[0];
-  if(bgRef){const c=resolveClr(bgRef,TC);if(c)return c;}
-  // 3. Fall back to theme lt1
-  return '#'+(TC.lt1||'FFFFFF');
+
+  // 1. Slide
+  const sc=extractBg(slideDoc);
+  if(sc&&sc!=='__blip__')return sc;
+  if(sc==='__blip__')return null; // image bg handled by caller
+
+  // 2. Layout
+  if(slide.layoutPartname&&entries[slide.layoutPartname]){
+    const lc=extractBg(parseXml(entries[slide.layoutPartname]));
+    if(lc&&lc!=='__blip__')return lc;
+  }
+
+  // 3. Master
+  if(a.masterPn&&entries[a.masterPn]){
+    const mc=extractBg(parseXml(entries[a.masterPn]));
+    if(mc&&mc!=='__blip__')return mc;
+  }
+
+  // 4. Theme lt1
+  return'#'+(TC.lt1||'FFFFFF');
 }
 
 function renderSlideToSvg(slideIdx, W, H) {
@@ -1128,27 +1229,55 @@ function renderSlideToSvg(slideIdx, W, H) {
   const doc=parseXml(slideData);
   const sRels=parseRels(S.entries?.[relsKey(slide.partname)]);
 
-  // Background
-  const bgFill=getSlideBackground(doc,slide,a,S.entries)||'#FFFFFF';
-  // Image background
-  let bgImgEl='';
-  const bgBlipFill=doc.getElementsByTagNameNS(NSMAP.p,'bgPr')[0]?.getElementsByTagNameNS(NSMAP.a,'blipFill')[0];
-  if(bgBlipFill){
-    const blip=bgBlipFill.getElementsByTagNameNS(NSMAP.a,'blip')[0];
-    const rId=blip?.getAttributeNS(NSMAP.r,'embed')||blip?.getAttribute('r:embed');
-    const rel=rId&&sRels?sRels[rId]:null;
-    const imgKey=rel?Object.keys(S.entries||{}).find(k=>k.endsWith(rel.target.split('/').pop())):null;
-    if(imgKey&&S.entries[imgKey]){const du=binToDataUrl(S.entries[imgKey],imgKey);if(du)bgImgEl=`<image width="${W}" height="${H}" href="${du}" preserveAspectRatio="xMidYMid slice"/>`;}
+  // Parse layout + master docs for placeholder positions and layer shapes
+  let lDoc=null, mDoc=null, lRels=null, mRels=null;
+  if(slide.layoutPartname&&S.entries[slide.layoutPartname]){
+    lDoc=parseXml(S.entries[slide.layoutPartname]);
+    lRels=parseRels(S.entries[relsKey(slide.layoutPartname)]);
+  }
+  if(a.masterPn&&S.entries[a.masterPn]){
+    mDoc=parseXml(S.entries[a.masterPn]);
+    mRels=parseRels(S.entries[relsKey(a.masterPn)]);
   }
 
+  // Build placeholder position map: layout first (overrides master)
+  const phMap={};
+  if(mDoc){const m=buildPhMap(mDoc,sx,sy);Object.assign(phMap,m);}
+  if(lDoc){const l=buildPhMap(lDoc,sx,sy);Object.assign(phMap,l);}
+
+  // Background color (cascade slide→layout→master→theme)
+  const bgFill=getSlideBackground(doc,slide,a,S.entries)||'#FFFFFF';
+
+  // Background image — check slide, then layout, then master
+  function extractBgImg(d, rels){
+    const bg=d.getElementsByTagNameNS(NSMAP.p,'bg')[0];
+    const bgPr=bg?.getElementsByTagNameNS(NSMAP.p,'bgPr')[0]||d.getElementsByTagNameNS(NSMAP.p,'bgPr')[0];
+    const bf=bgPr?.getElementsByTagNameNS(NSMAP.a,'blipFill')[0];
+    if(!bf)return'';
+    const blip=bf.getElementsByTagNameNS(NSMAP.a,'blip')[0];
+    const rId=blip?.getAttributeNS(NSMAP.r,'embed')||blip?.getAttribute('r:embed');
+    const rel=rId&&rels?rels[rId]:null;
+    const imgKey=rel?Object.keys(S.entries||{}).find(k=>k.endsWith(rel.target.split('/').pop())):null;
+    if(imgKey&&S.entries[imgKey]){const du=binToDataUrl(S.entries[imgKey],imgKey);if(du)return`<image width="${W}" height="${H}" href="${du}" preserveAspectRatio="xMidYMid slice"/>`;}
+    return'';
+  }
+  let bgImgEl=extractBgImg(doc,sRels);
+  if(!bgImgEl&&lDoc)bgImgEl=extractBgImg(lDoc,lRels);
+  if(!bgImgEl&&mDoc)bgImgEl=extractBgImg(mDoc,mRels);
+
+  // Render layers: master bg shapes → layout bg shapes → slide shapes
+  const masterShapes=mDoc?renderLayerShapes(mDoc,sx,sy,TC,mRels||{},S.entries,a.masterPn,defaultFont,true):'';
+  const layoutShapes=lDoc?renderLayerShapes(lDoc,sx,sy,TC,lRels||{},S.entries,slide.layoutPartname,defaultFont,true):'';
+
+  // Slide shapes with phMap for placeholder positioning
   const tree=xq1(doc,'p','spTree');
-  let shapes='';
+  let slideShapes='';
   if(tree){
     for(const ch of tree.children)
-      shapes+=renderNodeSvg(ch,sx,sy,TC,sRels,S.entries,slide.partname,defaultFont);
+      slideShapes+=renderNodeSvg(ch,sx,sy,TC,sRels,S.entries,slide.partname,defaultFont,phMap);
   }
 
-  return`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><rect width="${W}" height="${H}" fill="${bgFill}"/>${bgImgEl}${shapes}</svg>`;
+  return`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><rect width="${W}" height="${H}" fill="${bgFill}"/>${bgImgEl}${masterShapes}${layoutShapes}${slideShapes}</svg>`;
 }
 
 // Thumbnail — fast colored-rect version (no foreignObject overhead for 20+ thumbs)
@@ -1157,7 +1286,15 @@ function renderSlideSvg(slide, analysis) {
   const SW=analysis.slideWidth||12192000, SH=analysis.slideHeight||6858000;
   const sx=W/SW, sy=H/SH;
   const TC=analysis.theme.colors||{};
-  const bg='#'+(TC.lt1||'FFFFFF');
+  // Use master background color if available, else theme lt1
+  let bg='#'+(TC.lt1||'FFFFFF');
+  if(analysis.masterPn&&S.entries?.[analysis.masterPn]){
+    try{
+      const mDoc=parseXml(S.entries[analysis.masterPn]);
+      const mc=getSlideBackground(mDoc,slide,analysis,S.entries||{});
+      if(mc)bg=mc;
+    }catch(e){}
+  }
   const FILL={title:'rgba(15,23,42,.12)',ctrTitle:'rgba(15,23,42,.12)',subTitle:'rgba(15,23,42,.07)',body:'rgba(15,23,42,.06)',obj:'rgba(15,23,42,.06)',chart:'rgba(32,110,251,.15)',table:'rgba(3,105,161,.13)',image:'rgba(15,118,110,.12)',group:'rgba(15,23,42,.06)',other:'rgba(15,23,42,.04)'};
   let shapes='';
   for(const it of slide.shapeItems||[]){
@@ -1189,6 +1326,7 @@ async function analyzePptx(entries) {
   const masterPn = resolveTgt('ppt/presentation.xml', mRel.target);
   const masterData = entries[masterPn];
   if (!masterData) throw new Error('Slide Master nicht lesbar');
+  a.masterPn = masterPn;
   const masterDoc = parseXml(masterData);
   const masterRels = parseRels(entries[relsKey(masterPn)]);
 

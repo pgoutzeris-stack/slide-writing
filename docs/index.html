@@ -1987,11 +1987,12 @@ const TYPE_TO_LAYOUT = {
   title:'title',section:'secHead',bullets:'obj',blank:'blank',
   agenda:'titleOnly',kpi:'titleOnly',table:'titleOnly',
   waterfall:'titleOnly',bars:'titleOnly',timeline:'titleOnly',
-  comparison:'titleOnly',process:'titleOnly',gantt:'titleOnly',pie:'titleOnly',
+  comparison:'twoContent',process:'titleOnly',gantt:'titleOnly',pie:'titleOnly',
 };
 
 function findLayout(analysis, ltype) {
   return (analysis.layouts.find(l=>l.type===ltype) ||
+          analysis.layouts.find(l=>l.type==='twoContent') ||
           analysis.layouts.find(l=>l.type==='obj') ||
           analysis.layouts.find(l=>l.type==='titleOnly') ||
           analysis.layouts[0])?.partname || '';
@@ -2068,6 +2069,75 @@ function buildSlideXml(spec) {
       ({text:`${c}: ${spec.values?.[i]??''}`,level:0})
     );
     shp = ph('title',null,'Title 1',spec.title||'') + ph(null,1,'Content 2',bullets);
+  } else if (type==='comparison' && (spec.left||spec.right)) {
+    const lHead = spec.left?.heading||spec.left?.title||'';
+    const rHead = spec.right?.heading||spec.right?.title||'';
+    const lBullets = normalizeBullets(spec.left?.bullets||spec.left?.items||spec.left?.content||(typeof spec.left?.text==='string'?[{text:spec.left.text,level:0}]:[]));
+    const rBullets = normalizeBullets(spec.right?.bullets||spec.right?.items||spec.right?.content||(typeof spec.right?.text==='string'?[{text:spec.right.text,level:0}]:[]));
+    const mid = 6096000; // center of slide
+    const colW = 5334600, colX2 = mid+457200;
+    const headY=1828800, headH=457200, bodyY=2286000, bodyH=4114800;
+    const mkCol=(cx,heading,bullets,cid)=>`<p:sp>
+      <p:nvSpPr><p:cNvPr id="${cid}" name="H${cid}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>
+      <p:spPr><a:xfrm><a:off x="${cx}" y="${headY}"/><a:ext cx="${colW}" cy="${headH}"/></a:xfrm>
+        <a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/>
+        <a:p><a:r><a:rPr lang="de-DE" sz="1800" b="1"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill></a:rPr>
+        <a:t>${xmlEsc(heading)}</a:t></a:r></a:p>
+      </p:txBody></p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="${cid+1}" name="B${cid}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>
+      <p:spPr><a:xfrm><a:off x="${cx}" y="${bodyY}"/><a:ext cx="${colW}" cy="${bodyH}"/></a:xfrm>
+        <a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/>
+        ${bullets.map(b=>`<a:p>${b.level?`<a:pPr lvl="${b.level}"/>`:''}${b.text?`<a:r><a:rPr lang="de-DE" sz="1400"/><a:t>${xmlEsc(b.text)}</a:t></a:r>`:''}</a:p>`).join('')||'<a:p/>'}
+      </p:txBody></p:sp>`;
+    const divider=`<p:sp>
+      <p:nvSpPr><p:cNvPr id="${id+4}" name="Div"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr/></p:nvSpPr>
+      <p:spPr><a:xfrm><a:off x="${mid-22860}" y="${headY}"/><a:ext cx="45720" cy="${headH+bodyH}"/></a:xfrm>
+        <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+        <a:solidFill><a:schemeClr val="accent1"><a:alpha val="40000"/></a:schemeClr></a:solidFill>
+      </p:spPr><p:txBody><a:bodyPr/><a:lstStyle/><a:p/></p:txBody></p:sp>`;
+    shp = ph('title',null,'Title 1',spec.title||'')
+        + mkCol(685800,lHead,lBullets,id)+divider+mkCol(colX2,rHead,rBullets,id+2);
+    id+=6;
+  } else if (type==='process' && (spec.steps||spec.process)?.length) {
+    const steps=(spec.steps||spec.process).slice(0,5);
+    const n=steps.length||1;
+    const boxW=Math.floor((10820400-457200*(n-1))/n);
+    const boxH=3200400, boxY=2286000, startX=685800;
+    const arrowW=457200;
+    let boxes='';
+    steps.forEach((step,i)=>{
+      const bx=startX+i*(boxW+arrowW);
+      const label=typeof step==='string'?step:(step.label||step.title||step.name||'');
+      const desc=typeof step==='string'?'':(step.description||step.text||step.sub||'');
+      boxes+=`<p:sp>
+        <p:nvSpPr><p:cNvPr id="${id}" name="Step${i+1}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>
+        <p:spPr><a:xfrm><a:off x="${bx}" y="${boxY}"/><a:ext cx="${boxW}" cy="${boxH}"/></a:xfrm>
+          <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+          <a:solidFill><a:schemeClr val="accent${(i%6)+1}"><a:alpha val="18000"/></a:schemeClr></a:solidFill>
+          <a:ln w="12700"><a:solidFill><a:schemeClr val="accent${(i%6)+1}"/></a:solidFill></a:ln>
+        </p:spPr>
+        <p:txBody><a:bodyPr marL="182880" marR="182880" marT="182880" anchor="t"/><a:lstStyle/>
+          <a:p><a:pPr algn="ctr"/><a:r><a:rPr lang="de-DE" sz="2800" b="1"><a:solidFill><a:schemeClr val="accent${(i%6)+1}"/></a:solidFill></a:rPr><a:t>${i+1}</a:t></a:r></a:p>
+          <a:p><a:pPr algn="ctr"/><a:r><a:rPr lang="de-DE" sz="1600" b="1"/><a:t>${xmlEsc(label)}</a:t></a:r></a:p>
+          ${desc?`<a:p><a:pPr algn="ctr"/><a:r><a:rPr lang="de-DE" sz="1200"/><a:t>${xmlEsc(desc)}</a:t></a:r></a:p>`:''}
+        </p:txBody></p:sp>`;
+      id++;
+      if(i<n-1){
+        const ax=bx+boxW, ay=boxY+boxH/2-228600;
+        boxes+=`<p:sp>
+          <p:nvSpPr><p:cNvPr id="${id}" name="Arr${i}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>
+          <p:spPr><a:xfrm><a:off x="${ax}" y="${ay}"/><a:ext cx="${arrowW}" cy="457200"/></a:xfrm>
+            <a:prstGeom prst="rightArrow"><a:avLst/></a:prstGeom>
+            <a:solidFill><a:schemeClr val="accent1"><a:alpha val="50000"/></a:schemeClr></a:solidFill>
+            <a:ln><a:noFill/></a:ln>
+          </p:spPr><p:txBody><a:bodyPr/><a:lstStyle/><a:p/></p:txBody></p:sp>`;
+        id++;
+      }
+    });
+    shp = ph('title',null,'Title 1',spec.title||'') + boxes;
   } else {
     const bullets = normalizeBullets(spec.bullets||spec.items||[]);
     let extra = [];

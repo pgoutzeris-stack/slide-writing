@@ -893,6 +893,80 @@ function svgBox(el,sx,sy){
   };
 }
 
+// ── EMF (Enhanced Metafile) VECTOR RENDERER ─────────────────
+// Browsers can't display EMF. Parse the common GDI records (paths, poly*, fills,
+// brushes/pens, window/viewport mapping) into inline SVG. Returns {viewBox,content}.
+function emfToSvg(bytes){
+  try{
+    const u8=bytes instanceof Uint8Array?bytes:new Uint8Array(bytes);
+    if(u8.length<88)return null;
+    const dv=new DataView(u8.buffer,u8.byteOffset,u8.byteLength);
+    const i32=o=>dv.getInt32(o,true), u32=o=>dv.getUint32(o,true), i16=o=>dv.getInt16(o,true);
+    if(u32(0)!==1)return null; // first record must be EMR_HEADER
+    const bL=i32(8),bT=i32(12),bR=i32(16),bB=i32(20);
+    let W=bR-bL||1, H=bB-bT||1; if(W<0)W=-W; if(H<0)H=-H;
+    let winOrg={x:0,y:0},winExt=null,vpOrg={x:0,y:0},vpExt=null,fillRule='nonzero';
+    const objs={};
+    let curBrush={color:'#000000',none:false}, curPen={color:'#000000',width:1,none:true}, curTextColor='#000000';
+    const cref=c=>{const r=c&0xFF,g=(c>>8)&0xFF,b=(c>>16)&0xFF;return'#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');};
+    const mapX=x=>(winExt&&vpExt)?((x-winOrg.x)*(vpExt.x/(winExt.x||1))+vpOrg.x-bL):x-bL;
+    const mapY=y=>(winExt&&vpExt)?((y-winOrg.y)*(vpExt.y/(winExt.y||1))+vpOrg.y-bT):y-bT;
+    const PX=(x,y)=>`${mapX(x).toFixed(1)},${mapY(y).toFixed(1)}`;
+    let out='',pathD='';
+    const emit=(d,fill,stroke)=>{ if(!d)return'';
+      let f=(fill&&!curBrush.none)?`fill="${curBrush.color}" fill-rule="${fillRule}"`:'fill="none"';
+      let s=(stroke&&!curPen.none)?` stroke="${curPen.color}" stroke-width="${curPen.width.toFixed(1)}"`:'';
+      return`<path d="${d}" ${f}${s}/>`; };
+    let off=0,guard=0;
+    while(off+8<=u8.length && guard++<200000){
+      const type=u32(off), size=u32(off+4); if(size<8)break; const b=off+8;
+      switch(type){
+        case 9: winExt={x:i32(b),y:i32(b+4)}; break;        // SETWINDOWEXTEX
+        case 10: winOrg={x:i32(b),y:i32(b+4)}; break;       // SETWINDOWORGEX
+        case 11: vpExt={x:i32(b),y:i32(b+4)}; break;        // SETVIEWPORTEXTEX
+        case 12: vpOrg={x:i32(b),y:i32(b+4)}; break;        // SETVIEWPORTORGEX
+        case 19: fillRule=(u32(b)===1)?'evenodd':'nonzero'; break; // SETPOLYFILLMODE
+        case 24: curTextColor=cref(u32(b)); break;          // SETTEXTCOLOR
+        case 38: { const ih=u32(b),ps=u32(b+4),pw=i32(b+8),col=u32(b+20); objs[ih]={kind:'pen',color:cref(col),width:Math.max(0.5,pw||1),none:(ps&0xFF)===5}; break; } // CREATEPEN
+        case 95: { const ih=u32(b),ps=u32(b+4),pw=u32(b+8),brStyle=u32(b+12),col=u32(b+16); objs[ih]={kind:'pen',color:cref(col),width:Math.max(0.5,pw||1),none:(ps&0xFF)===5}; break; } // EXTCREATEPEN (approx)
+        case 39: { const ih=u32(b),style=u32(b+4),col=u32(b+8); objs[ih]={kind:'brush',color:cref(col),none:style===1}; break; } // CREATEBRUSHINDIRECT (BS_NULL=1)
+        case 37: { const ih=u32(b);                          // SELECTOBJECT
+          if(ih&0x80000000){const st=ih&0x7fffffff; if(st===5)curBrush={none:true}; else if(st===8)curPen={none:true}; else if(st===0||st===1)curBrush={color:'#FFFFFF',none:false};}
+          else{const o=objs[ih]; if(o){o.kind==='brush'?curBrush=o:curPen=o;}} break; }
+        case 40: { delete objs[u32(b)]; break; }             // DELETEOBJECT
+        case 27: pathD+=`M${PX(i32(b),i32(b+4))} `; break;   // MOVETOEX
+        case 54: pathD+=`L${PX(i32(b),i32(b+4))} `; break;   // LINETO
+        case 59: pathD=''; break;                            // BEGINPATH
+        case 60: break;                                      // ENDPATH
+        case 61: pathD+='Z '; break;                         // CLOSEFIGURE
+        case 62: out+=emit(pathD,true,false); pathD=''; break;  // FILLPATH
+        case 64: out+=emit(pathD,false,true); pathD=''; break;  // STROKEPATH
+        case 63: out+=emit(pathD,true,true); pathD=''; break;   // STROKEANDFILLPATH
+        case 43: { const l=i32(b),t=i32(b+4),r=i32(b+8),bo=i32(b+12); out+=emit(`M${PX(l,t)} L${PX(r,t)} L${PX(r,bo)} L${PX(l,bo)} Z`,true,true); break; } // RECTANGLE
+        case 42: { const l=i32(b),t=i32(b+4),r=i32(b+8),bo=i32(b+12),cx=(l+r)/2,cy=(t+bo)/2,rx=(r-l)/2,ry=(bo-t)/2; // ELLIPSE
+          out+=`<ellipse cx="${mapX(cx).toFixed(1)}" cy="${mapY(cy).toFixed(1)}" rx="${Math.abs(mapX(cx+rx)-mapX(cx)).toFixed(1)}" ry="${Math.abs(mapY(cy+ry)-mapY(cy)).toFixed(1)}" ${curBrush.none?'fill="none"':`fill="${curBrush.color}"`}${curPen.none?'':` stroke="${curPen.color}" stroke-width="${curPen.width.toFixed(1)}"`}/>`; break; }
+        // 16-bit polylines/beziers relative to current point (path mode)
+        case 89: { const cnt=u32(b+16); for(let k=0;k<cnt;k++)pathD+=`L${PX(i16(b+20+k*4),i16(b+22+k*4))} `; break; } // POLYLINETO16
+        case 88: { const cnt=u32(b+16); for(let k=0;k+2<cnt;k+=3)pathD+=`C${PX(i16(b+20+k*4),i16(b+22+k*4))} ${PX(i16(b+20+(k+1)*4),i16(b+22+(k+1)*4))} ${PX(i16(b+20+(k+2)*4),i16(b+22+(k+2)*4))} `; break; } // POLYBEZIERTO16
+        case 87: { const cnt=u32(b+16); for(let k=0;k<cnt;k++)pathD+=(k===0?'M':'L')+PX(i16(b+20+k*4),i16(b+22+k*4))+' '; break; } // POLYLINE16
+        case 86: { const cnt=u32(b+16); let d=''; for(let k=0;k<cnt;k++)d+=(k===0?'M':'L')+PX(i16(b+20+k*4),i16(b+22+k*4))+' '; d+='Z '; out+=emit(d,true,true); break; } // POLYGON16
+        case 85: { const cnt=u32(b+16); let d='M'+PX(i16(b+20),i16(b+22))+' '; for(let k=1;k+2<cnt;k+=3)d+=`C${PX(i16(b+20+k*4),i16(b+22+k*4))} ${PX(i16(b+20+(k+1)*4),i16(b+22+(k+1)*4))} ${PX(i16(b+20+(k+2)*4),i16(b+22+(k+2)*4))} `; out+=emit(d,true,true); break; } // POLYBEZIER16
+        case 91: case 90: { const nPolys=u32(b+16); let p=b+24+nPolys*4; const counts=[]; for(let j=0;j<nPolys;j++)counts.push(u32(b+24+j*4)); let d=''; for(let j=0;j<nPolys;j++){const cc=counts[j]; for(let k=0;k<cc;k++){d+=(k===0?'M':'L')+PX(i16(p),i16(p+2))+' ';p+=4;} d+='Z ';} out+=emit(d,true,type===91); break; } // POLYPOLYGON16 / POLYPOLYLINE16
+        // 32-bit variants
+        case 6: { const cnt=u32(b+16); for(let k=0;k<cnt;k++)pathD+=`L${PX(i32(b+20+k*8),i32(b+24+k*8))} `; break; } // POLYLINETO
+        case 5: { const cnt=u32(b+16); for(let k=0;k+2<cnt;k+=3)pathD+=`C${PX(i32(b+20+k*8),i32(b+24+k*8))} ${PX(i32(b+20+(k+1)*8),i32(b+24+(k+1)*8))} ${PX(i32(b+20+(k+2)*8),i32(b+24+(k+2)*8))} `; break; } // POLYBEZIERTO
+        case 4: { const cnt=u32(b+16); for(let k=0;k<cnt;k++)pathD+=(k===0?'M':'L')+PX(i32(b+20+k*8),i32(b+24+k*8))+' '; break; } // POLYLINE
+        case 3: { const cnt=u32(b+16); let d=''; for(let k=0;k<cnt;k++)d+=(k===0?'M':'L')+PX(i32(b+20+k*8),i32(b+24+k*8))+' '; d+='Z '; out+=emit(d,true,true); break; } // POLYGON
+        case 14: off=u8.length; break;                       // EOF
+      }
+      if(type===14)break;
+      off+=size;
+    }
+    if(!out.trim())return null;
+    return {viewBox:`0 0 ${W} ${H}`, content:out};
+  }catch(e){return null;}
+}
+
 // ── TIFF DECODER ────────────────────────────────────────────
 // Browsers can't display TIFF natively. Decode the common variants (uncompressed,
 // PackBits, LZW; RGB/RGBA/grayscale/palette; 8 bit/sample) to RGBA → canvas → PNG.
@@ -1568,6 +1642,12 @@ function renderPicSvg(el,sx,sy,sRels,entries){
   if(imgKey&&entries[imgKey]){
     const du=binToDataUrl(entries[imgKey],imgKey);
     if(du)return`<image x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" href="${du}" preserveAspectRatio="xMidYMid meet" ${TR}/>`;
+  }
+  // EMF vector metafile → parse GDI records into a nested SVG at the picture box
+  const ext0=(imgKey||rel?.target||'').split('.').pop().toLowerCase();
+  if(imgKey&&entries[imgKey]&&ext0==='emf'){
+    const emf=emfToSvg(entries[imgKey]);
+    if(emf)return`<g ${TR}><svg x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" viewBox="${emf.viewBox}" preserveAspectRatio="xMidYMid meet">${emf.content}</svg></g>`;
   }
   // Browsers can't decode EMF/WMF (vector metafiles), TIFF or WDP (JPEG-XR).
   // Preserve the layout slot with a subtle placeholder (NOT a hard gray X) so the

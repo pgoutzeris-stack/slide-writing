@@ -1142,6 +1142,26 @@ function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap,phLst){
     const gr=resolveGradFill(spPrGradFill,TC,gId);
     if(gr){gradDefs=gr.defs;explicitFill=gr.fill;}
   }
+  let picFillSvg='';
+  const spPrBlipFill=spPr?.getElementsByTagNameNS(NSMAP.a,'blipFill')[0];
+  if(spPrBlipFill){
+    explicitFill='none'; // shape border still rendered; image covers the fill
+    const blipEl=spPrBlipFill.getElementsByTagNameNS(NSMAP.a,'blip')[0];
+    const bRid=blipEl?.getAttributeNS(NSMAP.r,'embed')||blipEl?.getAttribute('r:embed');
+    const bRel=bRid&&sRels?sRels[bRid]:null;
+    const bKey=bRel?Object.keys(entries||{}).find(k=>k.endsWith(bRel.target.split('/').pop())):null;
+    if(bKey&&entries[bKey]){
+      const du=binToDataUrl(entries[bKey],bKey);
+      if(du){
+        const clipId='pc'+(slidePn||'').replace(/[^a-z0-9]/gi,'')+(b.x*100|0)+'_'+(b.y*100|0);
+        const isEllipse=(prst==='ellipse'||prst==='oval');
+        const rxVal=isEllipse?(Math.min(b.w,b.h)/2).toFixed(1):'4';
+        const clipRect=`<rect x="${b.x.toFixed(1)}" y="${b.y.toFixed(1)}" width="${b.w.toFixed(1)}" height="${b.h.toFixed(1)}" rx="${rxVal}"/>`;
+        const imgEl=`<image x="${b.x.toFixed(1)}" y="${b.y.toFixed(1)}" width="${b.w.toFixed(1)}" height="${b.h.toFixed(1)}" href="${du}" preserveAspectRatio="xMidYMid slice" clip-path="url(#${clipId})"/>`;
+        picFillSvg=`<clipPath id="${clipId}">${clipRect}</clipPath>|${imgEl}`;
+      }
+    }
+  }
   const styleFill=explicitFill===null?getStyleFill(el,TC):null;
   const fill=explicitFill!==null?explicitFill:(styleFill||(ph?'none':'rgba(180,180,180,0.08)'));
   const{stroke,sw}=shapeOutline(el,TC);
@@ -1328,6 +1348,13 @@ function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap,phLst){
   const shdwResult=getShapeShadow(el,TC);
   const shdwD=shdwResult?`<defs>${shdwResult.filterDef}</defs>`:'';
   const shapeOut=shdwResult?`<g filter="url(#${shdwResult.filterId})">${shape}</g>`:shape;
+  if(picFillSvg){
+    const pipeIdx=picFillSvg.indexOf('|');
+    const cpDef=pipeIdx>=0?picFillSvg.slice(0,pipeIdx):'';
+    const imgEl=pipeIdx>=0?picFillSvg.slice(pipeIdx+1):picFillSvg;
+    const shdwDef=shdwResult?shdwResult.filterDef:'';
+    return `<defs>${cpDef}${shdwDef}</defs>${shapeOut}${imgEl}${txt}`;
+  }
   return gradDefs+shdwD+shapeOut+txt;
 }
 
@@ -1545,7 +1572,36 @@ function renderNodeSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap,phLst
     const{stroke,sw}=shapeOutline(el,TC);
     const sc=stroke==='none'?'#94a3b8':stroke;
     const x1=flipH?x+w:x, y1=flipV?y+h:y, x2=flipH?x:x+w, y2=flipV?y:y+h;
-    return`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${sc}" stroke-width="${Math.max(0.5,sw)}"/>`;
+    const lw=Math.max(0.5,sw);
+
+    // Check for arrowhead end markers in a:ln
+    const spPr2=el.getElementsByTagNameNS(NSMAP.p,'spPr')[0];
+    const aln=spPr2?.getElementsByTagNameNS(NSMAP.a,'ln')[0];
+    const headEnd=aln?.getElementsByTagNameNS(NSMAP.a,'headEnd')[0];
+    const tailEnd=aln?.getElementsByTagNameNS(NSMAP.a,'tailEnd')[0];
+
+    function arrowMarker(id, endEl, msc){
+      const t=endEl?.getAttribute('type')||'none';
+      if(t==='none'||!t)return{def:'',ref:''};
+      const sz={sm:6,med:8,lg:10}[endEl?.getAttribute('len')||'med']||8;
+      const w2={sm:sz*0.5,med:sz*0.7,lg:sz}[endEl?.getAttribute('w')||'med']||sz*0.7;
+      let path='';
+      if(t==='arrow'||t==='stealth')path=`M0,0 L${sz},${w2/2} L0,${w2} ${t==='stealth'?`L${sz*0.4},${w2/2} `:''}Z`;
+      else if(t==='triangle')path=`M0,0 L${sz},${w2/2} L0,${w2} Z`;
+      else if(t==='diamond')path=`M0,${w2/2} L${sz/2},0 L${sz},${w2/2} L${sz/2},${w2} Z`;
+      else if(t==='oval')path=`M0,${w2/2} A${sz/2},${w2/2} 0 1,1 ${sz},${w2/2} A${sz/2},${w2/2} 0 1,1 0,${w2/2} Z`;
+      else return{def:'',ref:''};
+      const def=`<marker id="${id}" markerWidth="${sz+2}" markerHeight="${w2+2}" refX="${sz}" refY="${w2/2}" orient="auto" markerUnits="userSpaceOnUse"><path d="${path}" fill="${msc}"/></marker>`;
+      return{def, ref:`url(#${id})`};
+    }
+
+    const mid=Math.round((x1+x2)*10+(y1+y2)*10);
+    const hm=arrowMarker('h'+mid,headEnd,sc);
+    const tm=arrowMarker('t'+mid,tailEnd,sc);
+    const defs=(hm.def||tm.def)?`<defs>${hm.def}${tm.def}</defs>`:'';
+    const mStart=hm.ref?` marker-start="${hm.ref}"`:'';
+    const mEnd=tm.ref?` marker-end="${tm.ref}"`:'';
+    return defs+`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${sc}" stroke-width="${lw}"${mStart}${mEnd}/>`;
   }
   if(ln==='grpSp'){
     let out='';

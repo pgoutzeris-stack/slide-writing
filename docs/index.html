@@ -907,6 +907,34 @@ function resolveTypeface(tf, TC) {
   return tf;
 }
 
+// PowerPoint typefaces are often style-specific names ("Circular Std Bold",
+// "Circular Std Book") that do NOT match the installed CSS family ("Circular Std").
+// Build a font-family stack that tries the exact name, then the base family, and
+// derive the implied weight so the OS-installed family is actually used.
+const FONT_WEIGHT_WORDS={thin:100,hairline:100,extralight:200,ultralight:200,light:300,book:400,normal:400,regular:400,roman:400,text:400,medium:500,semibold:600,demibold:600,demi:600,bold:700,extrabold:800,ultrabold:800,heavy:900,black:900};
+function fontStack(typeface){
+  if(!typeface) return {family:"system-ui,sans-serif", weight:null, italic:false};
+  const tf=typeface.trim();
+  const words=tf.split(/\s+/);
+  let weight=null, italic=false, cut=words.length;
+  for(let i=words.length-1;i>=1;i--){
+    const w=words[i].toLowerCase();
+    if(FONT_WEIGHT_WORDS[w]!=null){ weight=FONT_WEIGHT_WORDS[w]; cut=i; }
+    else if(w==='italic'||w==='oblique'){ italic=true; cut=i; }
+    else break;
+  }
+  const base=words.slice(0,cut).join(' ')||tf;
+  const esc=s=>s.replace(/['"<>&]/g,'');
+  const fams=[`'${esc(tf)}'`];
+  if(base!==tf) fams.push(`'${esc(base)}'`);
+  const low=tf.toLowerCase();
+  const generic=(low.includes('mono')||low.includes('consol')||low.includes('courier'))?'monospace'
+    :(low.includes('times')||low.includes('serif')||low.includes('georgia')||low.includes('garamond')||low.includes('cambria')||low.includes('minion'))?'serif'
+    :'sans-serif';
+  fams.push('system-ui', generic);
+  return {family:fams.join(','), weight, italic};
+}
+
 // Resolve a txStyle level entry's color (may be '__scheme__val')
 function resolveTxStyleColor(entry, TC) {
   if (!entry?.color) return null;
@@ -1005,13 +1033,15 @@ function foText(txBody, box, TC, defaultFont, defaultTextColor, txLevels) {
       let color=sf?resolveClr(sf,TC)||null:null;
       if(!color)color=defColor||defaultTextColor||'#'+(TC.dk1||'000000');
 
-      // Font
+      // Font — build a stack that matches the installed family + implied weight
       const latinEl=rPr?.getElementsByTagNameNS(NSMAP.a,'latin')[0];
       const rawTf=latinEl?.getAttribute('typeface');
-      const ff=rawTf?resolveTypeface(rawTf,TC):(defFont||defaultFont||'inherit');
-      const safe=(ff||'inherit').replace(/['"<>&]/g,'');
+      const ff=rawTf?resolveTypeface(rawTf,TC):(defFont||defaultFont||null);
+      const fst=fontStack(ff);
+      const wgt=bold?700:(fst.weight!=null?fst.weight:400);
+      const italOut=ital||fst.italic;
 
-      const style=`font-size:${fs}px;color:${color};font-family:'${safe}',system-ui,sans-serif;${bold?'font-weight:700;':'font-weight:400;'}${ital?'font-style:italic;':''}${uline?'text-decoration:underline;':''}${strike?'text-decoration:line-through;':''}white-space:pre-wrap;`;
+      const style=`font-size:${fs}px;color:${color};font-family:${fst.family};font-weight:${wgt};${italOut?'font-style:italic;':''}${uline?'text-decoration:underline;':''}${strike?'text-decoration:line-through;':''}white-space:pre-wrap;`;
       const escaped=txt.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       runHtml+=`<span style="${style}">${escaped}</span>`;
     }
@@ -1435,7 +1465,20 @@ function renderPicSvg(el,sx,sy,sRels,entries){
     const du=binToDataUrl(entries[imgKey],imgKey);
     if(du)return`<image x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" href="${du}" preserveAspectRatio="xMidYMid meet" ${TR}/>`;
   }
-  // Unsupported format (EMF/WMF) or missing image — render nothing (no X placeholder)
+  // Browsers can't decode EMF/WMF (vector metafiles), TIFF or WDP (JPEG-XR).
+  // Preserve the layout slot with a subtle placeholder (NOT a hard gray X) so the
+  // slide doesn't look broken/empty. Skip tiny decorative bits.
+  const ext=(imgKey||rel?.target||'').split('.').pop().toLowerCase();
+  const undecodable=['emf','wmf','tiff','tif','wdp','jxr'].includes(ext);
+  if(imgKey&&undecodable&&w>=24&&h>=18){
+    const ix=x+w/2, iyTop=y+h/2-Math.min(w,h)*0.18, gs=Math.min(w,h)*0.22;
+    const glyph=`<g stroke="#94a3b8" stroke-width="${Math.max(0.6,gs*0.07).toFixed(1)}" fill="none">`+
+      `<rect x="${(ix-gs).toFixed(1)}" y="${(iyTop-gs*0.7).toFixed(1)}" width="${(gs*2).toFixed(1)}" height="${(gs*1.4).toFixed(1)}" rx="${(gs*0.12).toFixed(1)}"/>`+
+      `<circle cx="${(ix-gs*0.45).toFixed(1)}" cy="${(iyTop-gs*0.28).toFixed(1)}" r="${(gs*0.18).toFixed(1)}" fill="#94a3b8" stroke="none"/>`+
+      `<path d="M${(ix-gs*0.85).toFixed(1)},${(iyTop+gs*0.55).toFixed(1)} L${(ix-gs*0.2).toFixed(1)},${(iyTop-gs*0.05).toFixed(1)} L${(ix+gs*0.3).toFixed(1)},${(iyTop+gs*0.35).toFixed(1)} L${(ix+gs*0.6).toFixed(1)},${(iyTop+gs*0.1).toFixed(1)} L${(ix+gs).toFixed(1)},${(iyTop+gs*0.55).toFixed(1)}" fill="none"/></g>`;
+    const label=(w>=120&&h>=60)?`<text x="${ix.toFixed(1)}" y="${(y+h/2+Math.min(w,h)*0.26).toFixed(1)}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="${Math.max(7,Math.min(11,w*0.045)).toFixed(1)}" fill="#94a3b8">${ext.toUpperCase()}-Grafik</text>`:'';
+    return`<g ${TR}><rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="0.75"/>${glyph}${label}</g>`;
+  }
   return'';
 }
 
@@ -1855,12 +1898,16 @@ function getSlideBackground(slideDoc, slide, a, entries) {
   return'#'+(TC[bgSlot]||TC.lt1||'FFFFFF');
 }
 
-function renderSlideToSvg(slideIdx, W, H) {
-  W=W||960; H=H||540;
+function renderSlideToSvg(slideIdx, reqW, reqH) {
+  const targetW=reqW||960, targetH=reqH||540;
   const a=S.analysis; if(!a)return'';
   const slide=a.slides[slideIdx]; if(!slide)return'';
   const SW=a.slideWidth||12192000, SH=a.slideHeight||6858000;
-  const sx=W/SW, sy=H/SH;
+  // Uniform scale so the slide keeps its true aspect ratio (no horizontal/vertical
+  // squashing on non-16:9 decks). viewBox = fitted content size; container letterboxes.
+  const k=Math.min(targetW/SW, targetH/SH);
+  const W=+(SW*k).toFixed(2), H=+(SH*k).toFixed(2);
+  const sx=k, sy=k;
   // Resolve THIS slide's master (each layout points to its own master) — masters
   // differ in background AND clrMap (dark masters invert bg1/tx1).
   const masterPn=slide.masterPartname||a.masterPn;
@@ -2722,20 +2769,20 @@ function updateSlideStats(idx) {
 }
 
 // ── RENDER ──────────────────────────────────────────────────
+let _railObserver=null;
 function renderRail() {
   const el=document.getElementById('slide-thumbs');
+  if(_railObserver){_railObserver.disconnect();_railObserver=null;}
   el.innerHTML=S.analysis.slides.map((s,i)=>{
     const c=s.counts||{};
     const chips=[];
     if(c.charts) chips.push(`<span class="meta-chip chart"><i class="fa-solid fa-chart-bar"></i> ${c.charts}</span>`);
     if(c.tables) chips.push(`<span class="meta-chip table"><i class="fa-solid fa-table"></i> ${c.tables}</span>`);
     if(c.images) chips.push(`<span class="meta-chip img"><i class="fa-solid fa-image"></i> ${c.images}</span>`);
-    // Use the SAME real renderer as the main stage so thumbnails match 1:1
-    let svg;
-    try { svg = renderSlideToSvg(i, 320, 180); }
-    catch(_) { svg = renderSlideSvg(s, S.analysis); }
+    // Preview is rendered lazily (see below) — rendering all slides' full-res
+    // images at once can embed tens of MB and freeze the page on large decks.
     return `<div class="slide-thumb${i===S.activeSlide?' active':''}" data-idx="${i}">
-      <div class="slide-thumb-preview">${svg}</div>
+      <div class="slide-thumb-preview" data-idx="${i}"></div>
       <div class="slide-thumb-info">
         <div class="slide-thumb-num">Folie ${i+1}</div>
         <div class="slide-thumb-title">${escHtml(s.title||'(kein Titel)')}</div>
@@ -2743,10 +2790,34 @@ function renderRail() {
       </div>
     </div>`;
   }).join('');
+  // Render each thumbnail's real (1:1) SVG. The first batch renders eagerly (so the
+  // rail is never blank even if layout/observer is unavailable); the rest render
+  // lazily on scroll — rendering ALL at once embeds every slide's full-res images
+  // and can freeze the page on large decks.
+  const renderThumb=(prev)=>{
+    if(!prev||prev.dataset.rendered)return;
+    prev.dataset.rendered='1';
+    const i=+prev.dataset.idx;
+    try { prev.innerHTML = renderSlideToSvg(i, 320, 180); }
+    catch(_) { try { prev.innerHTML = renderSlideSvg(S.analysis.slides[i], S.analysis); } catch(__){} }
+  };
+  const previews=[...el.querySelectorAll('.slide-thumb-preview')];
+  const EAGER=8;
+  previews.slice(0,EAGER).forEach(renderThumb);                 // safety net
+  if(S.activeSlide>=EAGER) renderThumb(previews[S.activeSlide]); // keep active visible
+  const lazy=previews.slice(EAGER).filter(p=>!p.dataset.rendered);
+  if(lazy.length){
+    if('IntersectionObserver' in window){
+      _railObserver=new IntersectionObserver((entries,obs)=>{
+        for(const en of entries) if(en.isIntersecting){ renderThumb(en.target); obs.unobserve(en.target); }
+      },{root:null, rootMargin:'400px 0px'});
+      lazy.forEach(p=>_railObserver.observe(p));
+    } else {
+      lazy.forEach(renderThumb); // graceful fallback
+    }
+  }
   el.querySelectorAll('.slide-thumb').forEach(e=>{
-    e.addEventListener('click',()=>{
-      renderMainSlidePreview(+e.dataset.idx);
-    });
+    e.addEventListener('click',()=>{ renderMainSlidePreview(+e.dataset.idx); });
   });
 }
 

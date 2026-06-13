@@ -1225,6 +1225,50 @@ function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap,phLst){
   }else if(prst==='ribbon'||prst==='ribbon2'||prst==='ellipseRibbon'||prst==='ellipseRibbon2'){
     const d=h*.25;
     shape=`<polygon points="${x.toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${(y+h-d).toFixed(1)} ${(x+w*0.85).toFixed(1)},${(y+h).toFixed(1)} ${(x+w*0.7).toFixed(1)},${(y+h-d).toFixed(1)} ${(x+w*0.3).toFixed(1)},${(y+h-d).toFixed(1)} ${(x+w*0.15).toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${(y+h-d).toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='octagon'){
+    const d=Math.min(w,h)*0.29;
+    shape=`<polygon points="${(x+d).toFixed(1)},${y.toFixed(1)} ${(x+w-d).toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${(y+d).toFixed(1)} ${(x+w).toFixed(1)},${(y+h-d).toFixed(1)} ${(x+w-d).toFixed(1)},${(y+h).toFixed(1)} ${(x+d).toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${(y+h-d).toFixed(1)} ${x.toFixed(1)},${(y+d).toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='wave'){
+    const amp=h*0.08, wfreq=w/2;
+    const path=`M${x.toFixed(1)},${(y+amp).toFixed(1)} `+
+      `Q${(x+wfreq/4).toFixed(1)},${y.toFixed(1)} ${(x+wfreq/2).toFixed(1)},${(y+amp).toFixed(1)} `+
+      `Q${(x+3*wfreq/4).toFixed(1)},${(y+amp*2).toFixed(1)} ${(x+wfreq).toFixed(1)},${(y+amp).toFixed(1)} `+
+      `Q${(x+5*wfreq/4).toFixed(1)},${y.toFixed(1)} ${(x+6*wfreq/4).toFixed(1)},${(y+amp).toFixed(1)} `+
+      `Q${(x+7*wfreq/4).toFixed(1)},${(y+amp*2).toFixed(1)} ${(x+w).toFixed(1)},${(y+amp).toFixed(1)} `+
+      `L${(x+w).toFixed(1)},${(y+h-amp).toFixed(1)} `+
+      `Q${(x+7*wfreq/4).toFixed(1)},${(y+h).toFixed(1)} ${(x+6*wfreq/4).toFixed(1)},${(y+h-amp).toFixed(1)} `+
+      `Q${(x+5*wfreq/4).toFixed(1)},${(y+h-amp*2).toFixed(1)} ${(x+wfreq).toFixed(1)},${(y+h-amp).toFixed(1)} `+
+      `Q${(x+3*wfreq/4).toFixed(1)},${(y+h).toFixed(1)} ${(x+wfreq/2).toFixed(1)},${(y+h-amp).toFixed(1)} `+
+      `Q${(x+wfreq/4).toFixed(1)},${(y+h-amp*2).toFixed(1)} ${x.toFixed(1)},${(y+h-amp).toFixed(1)} Z`;
+    shape=`<path d="${path}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='flowChartDecision'){
+    shape=`<polygon points="${cx.toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${cy.toFixed(1)} ${cx.toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${cy.toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='flowChartTerminator'){
+    const ry=Math.min(h/2,w*0.18);
+    shape=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="${ry.toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='flowChartPredefinedProcess'){
+    const mx=w*0.13;
+    shape=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`+
+      `<line x1="${(x+mx).toFixed(1)}" y1="${y.toFixed(1)}" x2="${(x+mx).toFixed(1)}" y2="${(y+h).toFixed(1)}" stroke="${stroke==='none'?'#475569':stroke}" stroke-width="${Math.max(0.5,sw)}"/>`+
+      `<line x1="${(x+w-mx).toFixed(1)}" y1="${y.toFixed(1)}" x2="${(x+w-mx).toFixed(1)}" y2="${(y+h).toFixed(1)}" stroke="${stroke==='none'?'#475569':stroke}" stroke-width="${Math.max(0.5,sw)}"/>`;
+  }else if(prst==='flowChartConnector'){
+    shape=`<ellipse cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${(w/2).toFixed(1)}" ry="${(h/2).toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='flowChartDocument'){
+    const amp2=h*0.1;
+    const p=`M${x.toFixed(1)},${y.toFixed(1)} L${(x+w).toFixed(1)},${y.toFixed(1)} L${(x+w).toFixed(1)},${(y+h-amp2).toFixed(1)} Q${(x+w*0.75).toFixed(1)},${(y+h).toFixed(1)} ${(x+w/2).toFixed(1)},${(y+h-amp2).toFixed(1)} Q${(x+w*0.25).toFixed(1)},${(y+h-amp2*2).toFixed(1)} ${x.toFixed(1)},${(y+h-amp2).toFixed(1)} Z`;
+    shape=`<path d="${p}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='snip1Rect'||prst==='snipRoundRect'){
+    const sc2=Math.min(w,h)*0.18;
+    shape=`<polygon points="${x.toFixed(1)},${y.toFixed(1)} ${(x+w-sc2).toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${(y+sc2).toFixed(1)} ${(x+w).toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${(y+h).toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='snip2SameRect'){
+    const sc2=Math.min(w,h)*0.18;
+    shape=`<polygon points="${(x+sc2).toFixed(1)},${y.toFixed(1)} ${(x+w-sc2).toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${(y+sc2).toFixed(1)} ${(x+w).toFixed(1)},${(y+h-sc2).toFixed(1)} ${(x+w-sc2).toFixed(1)},${(y+h).toFixed(1)} ${(x+sc2).toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${(y+h-sc2).toFixed(1)} ${x.toFixed(1)},${(y+sc2).toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='round1Rect'){
+    const rc=Math.min(w,h)*0.15;
+    shape=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="${rc.toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='round2SameRect'||prst==='round2DiagRect'){
+    const rc=Math.min(w,h)*0.2;
+    shape=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="${rc.toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
   }else{
     shape=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
   }
@@ -1344,12 +1388,141 @@ function renderTableSvg(tbl,box,TC,defaultFont){
   return out;
 }
 
+function renderChartSvg(chartDoc,box,TC){
+  const{x,y,w,h}=box;
+  const ac='#'+(TC.accent1||'206efb');
+  const colors=[ac,'#'+(TC.accent2||'ed8936'),'#'+(TC.accent3||'48bb78'),'#'+(TC.accent4||'9f7aea'),'#'+(TC.accent5||'f56565'),'#'+(TC.accent6||'38b2ac')];
+  const C=(i)=>colors[i%colors.length];
+  const NS_C='http://schemas.openxmlformats.org/drawingml/2006/chart';
+  const qc=(tag)=>[...chartDoc.getElementsByTagNameNS(NS_C,tag)];
+
+  // Detect chart type
+  const hasBar=qc('barChart').length>0;
+  const hasLine=qc('lineChart').length>0;
+  const hasPie=qc('pieChart').length>0||qc('doughnutChart').length>0;
+  const isDoughnut=qc('doughnutChart').length>0;
+  const isHorizontal=hasBar&&qc('barChart')[0]?.getElementsByTagNameNS(NS_C,'barDir')[0]?.getAttribute('val')==='bar';
+
+  // Extract series
+  const serEls=qc('ser');
+  const series=serEls.map(s=>{
+    const name=s.getElementsByTagNameNS(NS_C,'v')[0]?.textContent||'';
+    const cats=[...s.getElementsByTagNameNS(NS_C,'cat')[0]?.getElementsByTagNameNS(NS_C,'v')||[]].map(e=>e.textContent);
+    const vals=[...s.getElementsByTagNameNS(NS_C,'val')[0]?.getElementsByTagNameNS(NS_C,'v')||[]].map(e=>+e.textContent||0);
+    return{name,cats,vals};
+  }).filter(s=>s.vals.length>0);
+  if(!series.length){
+    return`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${ac}14" rx="2" stroke="${ac}" stroke-width="0.8" stroke-opacity="0.6"/><text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" font-size="11" fill="${ac}" font-family="system-ui">▦ Diagramm</text>`;
+  }
+
+  const pad={t:12,r:8,b:24,l:28};
+  const cw=w-pad.l-pad.r, ch=h-pad.t-pad.b;
+  const cx=x+pad.l, cy2=y+pad.t;
+
+  if(hasPie){
+    // Pie / Donut
+    const vals=series[0].vals;
+    const total=vals.reduce((s,v)=>s+Math.abs(v),0)||1;
+    const r=Math.min(cw,ch)/2, pcx=x+w/2, pcy=y+h/2;
+    const inner=isDoughnut?r*0.55:0;
+    let angle=-Math.PI/2, out='';
+    vals.forEach((v,i)=>{
+      const slice=Math.abs(v)/total*2*Math.PI;
+      const a1=angle, a2=angle+slice;
+      const x1=pcx+r*Math.cos(a1), y1=pcy+r*Math.sin(a1);
+      const x2=pcx+r*Math.cos(a2), y2=pcy+r*Math.sin(a2);
+      const large=slice>Math.PI?1:0;
+      if(inner>0){
+        const ix1=pcx+inner*Math.cos(a1),iy1=pcy+inner*Math.sin(a1);
+        const ix2=pcx+inner*Math.cos(a2),iy2=pcy+inner*Math.sin(a2);
+        out+=`<path d="M${x1.toFixed(1)},${y1.toFixed(1)} A${r.toFixed(1)},${r.toFixed(1)} 0 ${large},1 ${x2.toFixed(1)},${y2.toFixed(1)} L${ix2.toFixed(1)},${iy2.toFixed(1)} A${inner.toFixed(1)},${inner.toFixed(1)} 0 ${large},0 ${ix1.toFixed(1)},${iy1.toFixed(1)} Z" fill="${C(i)}" stroke="#fff" stroke-width="0.8"/>`;
+      } else {
+        out+=`<path d="M${pcx.toFixed(1)},${pcy.toFixed(1)} L${x1.toFixed(1)},${y1.toFixed(1)} A${r.toFixed(1)},${r.toFixed(1)} 0 ${large},1 ${x2.toFixed(1)},${y2.toFixed(1)} Z" fill="${C(i)}" stroke="#fff" stroke-width="0.8"/>`;
+      }
+      angle=a2;
+    });
+    return out;
+  }
+
+  const cats=series[0].cats.length?series[0].cats:series[0].vals.map((_,i)=>''+i);
+  const nCats=cats.length||1;
+  const nSer=series.length;
+  const allVals=series.flatMap(s=>s.vals);
+  const maxV=Math.max(...allVals,0.001);
+  const minV=Math.min(0,...allVals);
+  const range=maxV-minV||1;
+
+  if(hasLine){
+    let out=`<line x1="${cx}" y1="${cy2}" x2="${cx}" y2="${cy2+ch}" stroke="#e2e8f0" stroke-width="0.5"/>`;
+    out+=`<line x1="${cx}" y1="${cy2+ch}" x2="${cx+cw}" y2="${cy2+ch}" stroke="#e2e8f0" stroke-width="0.5"/>`;
+    const step=cw/(nCats-1||1);
+    series.forEach((s,si)=>{
+      const pts=s.vals.map((v,i)=>{
+        const px=cx+i*step;
+        const py=cy2+ch-(v-minV)/range*ch;
+        return`${px.toFixed(1)},${py.toFixed(1)}`;
+      }).join(' ');
+      out+=`<polyline points="${pts}" fill="none" stroke="${C(si)}" stroke-width="${Math.max(1,h*0.02)}"/>`;
+      s.vals.forEach((v,i)=>{
+        const px=cx+i*step, py=cy2+ch-(v-minV)/range*ch;
+        out+=`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${Math.max(2,h*0.025).toFixed(1)}" fill="${C(si)}" stroke="#fff" stroke-width="0.8"/>`;
+      });
+    });
+    cats.forEach((c2,i)=>{
+      const px=cx+i*step;
+      out+=`<text x="${px.toFixed(1)}" y="${(cy2+ch+10).toFixed(1)}" text-anchor="middle" font-size="${Math.max(6,Math.min(9,cw/nCats*0.4)).toFixed(1)}" fill="#94a3b8" font-family="system-ui">${c2.length>6?c2.slice(0,5)+'…':c2}</text>`;
+    });
+    return out;
+  }
+
+  // Bar/Column (default)
+  const groupW=cw/nCats;
+  const barW=Math.max(1,(groupW*0.7)/nSer);
+  let out=`<line x1="${cx}" y1="${cy2}" x2="${cx}" y2="${cy2+ch}" stroke="#e2e8f0" stroke-width="0.5"/>`;
+  out+=`<line x1="${cx}" y1="${cy2+ch}" x2="${cx+cw}" y2="${cy2+ch}" stroke="#e2e8f0" stroke-width="0.5"/>`;
+  series.forEach((s,si)=>{
+    s.vals.forEach((v,ci)=>{
+      if(isHorizontal){
+        const bh=Math.max(1,(ch/nCats)*0.6/nSer);
+        const bx=cx+(v<0?v-minV:0)/range*cw;
+        const vbar=Math.abs(v)/range*cw;
+        const by=cy2+(ci*ch/nCats)+(si*bh)+(ch/nCats*0.2);
+        out+=`<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${vbar.toFixed(1)}" height="${bh.toFixed(1)}" fill="${C(si)}" rx="1"/>`;
+      } else {
+        const bx=cx+ci*groupW+si*barW+(groupW-nSer*barW)/2;
+        const bh2=Math.abs(v)/range*ch;
+        const by=cy2+ch-(v>0?v-minV:0)/range*ch-bh2;
+        out+=`<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh2.toFixed(1)}" fill="${C(si)}" rx="1"/>`;
+      }
+    });
+  });
+  cats.forEach((c2,i)=>{
+    const lx=cx+(i+0.5)*groupW;
+    out+=`<text x="${lx.toFixed(1)}" y="${(cy2+ch+10).toFixed(1)}" text-anchor="middle" font-size="${Math.max(6,Math.min(9,groupW*0.4)).toFixed(1)}" fill="#94a3b8" font-family="system-ui">${c2.length>6?c2.slice(0,5)+'…':c2}</text>`;
+  });
+  return out;
+}
+
 function renderGraphicFrameSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont){
   const b=svgBox(el,sx,sy);if(!b)return'';
   const{x,y,w,h}=b;
   const gd=el.getElementsByTagNameNS(NSMAP.a,'graphicData')[0];
   const uri=gd?.getAttribute('uri')||'';
   if(uri===CHART_URI){
+    try{
+      const cEl=gd.getElementsByTagNameNS('http://schemas.openxmlformats.org/drawingml/2006/chart','chart')[0];
+      const rid=cEl?.getAttributeNS(NSMAP.r,'id')||cEl?.getAttribute('r:id')||'';
+      const cRel=sRels[rid];
+      if(cRel){
+        const cKey=Object.keys(entries).find(k=>k.endsWith(cRel.target.split('/').pop()));
+        if(cKey){
+          const cDoc=parseXml(entries[cKey]);
+          const chartSvg=renderChartSvg(cDoc,b,TC);
+          if(chartSvg)return chartSvg;
+        }
+      }
+    }catch(_){}
+    // fallback
     const ac='#'+(TC.accent1||'206efb');
     return`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="${ac}14" rx="2" stroke="${ac}" stroke-width="0.8" stroke-opacity="0.6"/><text x="${(x+w/2).toFixed(1)}" y="${(y+h/2-6).toFixed(1)}" text-anchor="middle" font-size="${Math.max(8,Math.min(14,h*.18)).toFixed(1)}" fill="${ac}" font-family="system-ui" opacity="0.7">▦ Diagramm</text>`;
   }

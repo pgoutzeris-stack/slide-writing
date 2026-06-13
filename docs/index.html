@@ -157,6 +157,7 @@ body{font-family:'Circular Std',system-ui,sans-serif;color:var(--ink);background
 .spec-slides{padding:.5rem .75rem;max-height:180px;overflow-y:auto}
 .spec-slide-item{display:flex;align-items:center;gap:.75rem;padding:.45rem .25rem;border-bottom:1px solid var(--bg-surface);font-size:.82rem}
 .spec-slide-item:last-child{border-bottom:none}
+.spec-slide-preview svg{width:100%;border-radius:6px;border:1px solid var(--line)}
 .spec-slide-num{width:22px;height:22px;border-radius:50%;background:var(--brand-light);color:var(--brand);font-size:.7rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .spec-slide-type{font-size:.68rem;font-weight:700;padding:.1rem .45rem;border-radius:4px;background:var(--bg-surface);color:var(--muted);white-space:nowrap}
 .spec-slide-title{flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1886,6 +1887,44 @@ async function generatePptx(entries, specs, analysis) {
   return buildZip(out);
 }
 
+// ── STYLE PAYLOAD ──────────────────────────────────────────
+function buildStylePayload(a) {
+  // Resolved hex colors (add # prefix)
+  const colors = {};
+  for (const [slot, hex] of Object.entries(a.theme.colors||{})) {
+    colors[slot] = '#' + hex;
+  }
+
+  // Text sizes from txStyles
+  const titleSz = a.theme.txStyles?.title?.[0]?.sz || 44;
+  const bodySz  = [
+    a.theme.txStyles?.body?.[0]?.sz || 24,
+    a.theme.txStyles?.body?.[1]?.sz || 20,
+    a.theme.txStyles?.body?.[2]?.sz || 18,
+  ];
+
+  // Collect dominant shape fills from slides (top 3 most used)
+  const fillCount = {};
+  for (const slide of a.slides||[]) {
+    for (const el of slide.shapeItems||[]) {
+      if (el.fill && el.fill !== 'none' && el.fill !== 'transparent') {
+        fillCount[el.fill] = (fillCount[el.fill]||0)+1;
+      }
+    }
+  }
+  const dominantFills = Object.entries(fillCount)
+    .sort((x,y)=>y[1]-x[1]).slice(0,3).map(([f])=>f);
+
+  return {
+    colors,
+    fonts: { major: a.theme.majorFont, minor: a.theme.minorFont },
+    textSizes: { titlePt: titleSz, bodyPt: bodySz },
+    dominantFills,
+    availableLayouts: (a.layouts||[]).map(l=>({name:l.name, type:l.type})),
+    slideAspect: '16:9',
+  };
+}
+
 // ── AI CLIENT ──────────────────────────────────────────────
 async function callAI(message) {
   const a = S.analysis;
@@ -1902,6 +1941,7 @@ async function callAI(message) {
       theme:a.theme,
       slides:a.slides.map(s=>({index:s.index,title:s.title,layoutFile:s.layoutPartname?.split('/').pop()})),
       detectedElements: buildElementSummary(a),
+      styleGuide: buildStylePayload(a),
       ...(pickerContext ? {manuallySpecifiedElements: pickerContext} : {}),
     },
     deep_analysis:{
@@ -2283,18 +2323,47 @@ function renderPickerHtml(supplement) {
     <div class="picker-groups">${groups}</div>`;
 }
 
-function renderSpec() {
+async function renderSpec() {
   const spec=S.draftSpec, panel=document.getElementById('spec-panel');
   if (!spec?.slides?.length){panel.style.display='none';return;}
   panel.style.display='block';
   document.getElementById('spec-count').textContent=spec.slides.length;
+  // Render text list immediately
   document.getElementById('spec-slides-list').innerHTML=spec.slides.map((s,i)=>
-    `<div class="spec-slide-item">
+    `<div class="spec-slide-item" data-spec-idx="${i}">
       <div class="spec-slide-num">${i+1}</div>
       <span class="spec-slide-type">${SLIDE_LABELS[s.type]||s.type||'?'}</span>
       <span class="spec-slide-title">${escHtml(s.title||'(kein Titel)')}</span>
+      <div class="spec-slide-preview" id="spec-prev-${i}" style="margin-top:.5rem;display:none;"></div>
     </div>`
   ).join('');
+  // Async SVG preview for each slide (only if analysis is loaded)
+  if (!S.analysis || !S.entries) return;
+  const a = S.analysis;
+  const origLen = a.slides.length;
+  for (let i=0; i<spec.slides.length; i++) {
+    try {
+      const xml = buildSlideXml(spec.slides[i]);
+      const ltype = TYPE_TO_LAYOUT[spec.slides[i].type||'bullets']||'obj';
+      const lpn = findLayout(a, ltype);
+      const tmpKey = `ppt/slides/__prev${i}__.xml`;
+      S.entries[tmpKey] = ENC2.encode(xml);
+      const tmpSlide = {
+        index: origLen+i,
+        partname: tmpKey,
+        layoutPartname: lpn,
+        title: spec.slides[i].title||'',
+        counts:{shapes:0,images:0,tables:0,charts:0,connectors:0},
+        elements:[],shapeItems:[],
+      };
+      a.slides.push(tmpSlide);
+      const svg = renderSlideToSvg(origLen+i, 320, 180);
+      a.slides.pop();
+      delete S.entries[tmpKey];
+      const el = document.getElementById(`spec-prev-${i}`);
+      if (el && svg) { el.style.display='block'; el.innerHTML=svg; }
+    } catch(_) { /* skip preview on error */ }
+  }
 }
 
 // ── HANDLERS ────────────────────────────────────────────────

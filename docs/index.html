@@ -762,7 +762,11 @@ function analyzeSlideShapes(doc, sRels, entries) {
 }
 
 // ── DRAWINGML COLOR ENGINE ─────────────────────────────────
-const SCHEME_SLOT = {tx1:'dk1',tx2:'dk2',bg1:'lt1',bg2:'lt2',phClr:'dk1'};
+const SCHEME_SLOT = {tx1:'dk1',tx2:'dk2',bg1:'lt1',bg2:'lt2',phClr:'dk1',
+  dk1:'dk1',lt1:'lt1',dk2:'dk2',lt2:'lt2',
+  accent1:'accent1',accent2:'accent2',accent3:'accent3',
+  accent4:'accent4',accent5:'accent5',accent6:'accent6',
+  hlink:'hlink',folHlink:'folHlink'};
 const PRST_CLR = {black:'000000',white:'FFFFFF',red:'FF0000',darkRed:'8B0000',
   green:'008000',darkGreen:'006400',blue:'0000FF',darkBlue:'00008B',
   yellow:'FFFF00',cyan:'00FFFF',magenta:'FF00FF',orange:'FFA500',
@@ -816,164 +820,297 @@ function resolveFill(spPr, TC, fallback) {
 }
 
 // ── DRAWINGML → SVG RENDERER ───────────────────────────────
+// ViewBox: 960 × 540. For a standard 16:9 slide (12192000 × 6858000 EMU):
+//   sx = sy = 960/12192000 ≈ 7.874e-5
+//   1 pt = 12700 EMU → 1 SVG unit  (so sz/100 pt ≈ sz/100 SVG px — correct for foreignObject)
+
 function svgBox(el,sx,sy){
   const xfrm=el.getElementsByTagNameNS(NSMAP.a,'xfrm')[0];
   if(!xfrm)return null;
   const off=xfrm.getElementsByTagNameNS(NSMAP.a,'off')[0];
   const ext=xfrm.getElementsByTagNameNS(NSMAP.a,'ext')[0];
   if(!off||!ext)return null;
-  return{x:(+off.getAttribute('x')||0)*sx, y:(+off.getAttribute('y')||0)*sy,
+  return{
+    x:(+off.getAttribute('x')||0)*sx, y:(+off.getAttribute('y')||0)*sy,
     w:Math.max((+ext.getAttribute('cx')||0)*sx,1), h:Math.max((+ext.getAttribute('cy')||0)*sy,1),
-    rot:+(xfrm.getAttribute('rot')||0)/60000};
+    rot:+(xfrm.getAttribute('rot')||0)/60000,
+    flipH:xfrm.getAttribute('flipH')==='1', flipV:xfrm.getAttribute('flipV')==='1'
+  };
 }
-function getTextLines(txBody,max){
-  const lines=[];
-  for(const p of txBody.getElementsByTagNameNS(NSMAP.a,'p')){
-    const t=[...p.getElementsByTagNameNS(NSMAP.a,'t')].map(e=>e.textContent||'').join('');
-    if(t.trim())lines.push(t.trim());
-    if(lines.length>=max)break;
+
+// Convert binary Uint8Array to base64 data URL for images
+function binToDataUrl(data, key) {
+  if(!data||!data.length)return null;
+  const ext=(key||'').split('.').pop().toLowerCase();
+  const mime={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',bmp:'image/bmp',svg:'image/svg+xml',webp:'image/webp'}[ext];
+  if(!mime||mime.includes('svg'))return null; // skip SVG and unknown
+  // chunk btoa to avoid call stack overflow on large images
+  let b64='';
+  const chunk=8192;
+  for(let i=0;i<data.length;i+=chunk)
+    b64+=String.fromCharCode.apply(null,data.subarray(i,i+chunk));
+  return`data:${mime};base64,${btoa(b64)}`;
+}
+
+// Build a foreignObject HTML text block — proper rendering with CSS
+function foText(txBody, box, TC, defaultFont) {
+  if(!txBody)return'';
+  const{x,y,w,h}=box;
+  if(w<2||h<2)return'';
+
+  const bodyPr=txBody.getElementsByTagNameNS(NSMAP.a,'bodyPr')[0];
+  const anchor=bodyPr?.getAttribute('anchor')||'t';
+  const valign={t:'flex-start',ctr:'center',b:'flex-end'}[anchor]||'flex-start';
+  // inset margins (EMU) — default 91440 horiz, 45720 vert
+  const mL=+(bodyPr?.getAttribute('marL')??91440)/12192000*960;
+  const mR=+(bodyPr?.getAttribute('marR')??91440)/12192000*960;
+  const mT=+(bodyPr?.getAttribute('marT')??45720)/6858000*540;
+  const mB=+(bodyPr?.getAttribute('marB')??45720)/6858000*540;
+  const vert=bodyPr?.getAttribute('vert');
+  const isVert=vert&&vert!=='horz'&&vert!=='';
+
+  let pHtml='';
+  for(const para of txBody.getElementsByTagNameNS(NSMAP.a,'p')){
+    const pPr=para.getElementsByTagNameNS(NSMAP.a,'pPr')[0];
+    const algn=pPr?.getAttribute('algn')||'';
+    const ta={l:'left',ctr:'center',r:'right',just:'justify',dist:'justify'}[algn]||'left';
+    const spc=+(pPr?.getElementsByTagNameNS(NSMAP.a,'spcPct')?.[0]?.getAttribute('val')??100000)/100000;
+    let runHtml='';
+    // default size from list style or body default
+    let defSz=null;
+    const defRPr=para.getElementsByTagNameNS(NSMAP.a,'defRPr')[0];
+    if(defRPr){const s=defRPr.getAttribute('sz');if(s)defSz=+s/100;}
+    for(const run of para.getElementsByTagNameNS(NSMAP.a,'r')){
+      const rPr=run.getElementsByTagNameNS(NSMAP.a,'rPr')[0];
+      const t=run.getElementsByTagNameNS(NSMAP.a,'t')[0];
+      const txt=t?.textContent||'';
+      if(!txt)continue;
+      const sz=rPr?.getAttribute('sz');
+      const fs=sz?+sz/100:(defSz||14);
+      const bold=rPr?.getAttribute('b')==='1';
+      const ital=rPr?.getAttribute('i')==='1';
+      const uline=rPr?.getAttribute('u')==='sng'||rPr?.getAttribute('u')==='dbl';
+      const strike=rPr?.getAttribute('strike')==='sngStrike';
+      const sf=rPr?.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
+      let color=sf?resolveClr(sf,TC)||null:null;
+      if(!color){const sc=rPr?.getElementsByTagNameNS(NSMAP.a,'schemeClr')[0]||rPr?.getElementsByTagNameNS(NSMAP.a,'srgbClr')[0];if(sc)color=resolveClr({getElementsByTagNameNS:(_,n)=>n===sc.localName?[sc]:[]},...[TC])||null;}
+      if(!color)color='#'+(TC.dk1||'000000');
+      const latin=rPr?.getElementsByTagNameNS(NSMAP.a,'latin')[0];
+      const ff=latin?.getAttribute('typeface')||defaultFont||'inherit';
+      const safe=ff.replace(/['"<>&]/g,'');
+      const style=`font-size:${fs}px;color:${color};font-family:'${safe}',system-ui,sans-serif;${bold?'font-weight:700;':''}${ital?'font-style:italic;':''}${uline?'text-decoration:underline;':''}${strike?'text-decoration:line-through;':''}white-space:pre-wrap;`;
+      const escaped=txt.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      runHtml+=`<span style="${style}">${escaped}</span>`;
+    }
+    // Line break elements
+    for(const br of para.getElementsByTagNameNS(NSMAP.a,'br'))runHtml+='<br/>';
+    if(runHtml){
+      pHtml+=`<div style="text-align:${ta};line-height:${(spc*1.25).toFixed(2)};margin-bottom:0.1em;">${runHtml}</div>`;
+    }else{
+      // empty paragraph = spacing
+      const empSz=defSz||12;
+      pHtml+=`<div style="height:${(empSz*0.5).toFixed(1)}px"></div>`;
+    }
   }
-  return lines;
+  if(!pHtml)return'';
+  const rotStyle=isVert?'writing-mode:vertical-rl;text-orientation:mixed;':'';
+  return`<foreignObject x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}"><div xmlns="http://www.w3.org/1999/xhtml" style="width:100%;height:100%;display:flex;flex-direction:column;justify-content:${valign};overflow:hidden;padding:${mT.toFixed(1)}px ${mR.toFixed(1)}px ${mB.toFixed(1)}px ${mL.toFixed(1)}px;box-sizing:border-box;${rotStyle}">${pHtml}</div></foreignObject>`;
 }
-function getFontPx(txBody,defaultPt){
-  const rPr=txBody&&txBody.getElementsByTagNameNS(NSMAP.a,'rPr')[0];
-  const sz=rPr&&rPr.getAttribute('sz');
-  return Math.max(6,Math.min(60,sz?+sz/100*1.333:defaultPt*1.333));
+
+function shapeOutline(spPr,TC){
+  const ln=spPr?.getElementsByTagNameNS(NSMAP.a,'ln')[0];
+  if(!ln)return{stroke:'none',sw:0};
+  const noFill=ln.getElementsByTagNameNS(NSMAP.a,'noFill')[0];
+  if(noFill)return{stroke:'none',sw:0};
+  const sf=ln.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
+  const stroke=sf?resolveClr(sf,TC)||'#000':'#000';
+  const sw=Math.max(0.5,(+(ln.getAttribute('w')||9525))/12700);
+  return{stroke,sw};
 }
-function svgText(lines,x,y,w,h,px,fill){
-  const lh=px*1.35, total=lines.length*lh;
-  let sy=y+(h-total)/2+px*0.85;
-  let out='';
-  for(const line of lines){
-    if(sy>y+h+2)break;
-    const maxCh=Math.max(1,Math.floor(w/(px*0.52)));
-    const t=(line.length>maxCh?line.slice(0,maxCh-1)+'…':line).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    out+=`<text x="${(x+w/2).toFixed(1)}" y="${sy.toFixed(1)}" text-anchor="middle" font-size="${px.toFixed(1)}" fill="${fill}" font-family="system-ui,sans-serif">${t}</text>`;
-    sy+=lh;
-  }
-  return out;
-}
-function renderSpSvg(el,sx,sy,TC){
+
+function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont){
   const b=svgBox(el,sx,sy); if(!b)return'';
-  const{x,y,w,h,rot}=b;
-  const spPr=el.getElementsByTagNameNS(NSMAP.p,'spPr')[0]||el.getElementsByTagNameNS(NSMAP.a,'spPr')[0];
+  const{x,y,w,h,rot,flipH,flipV}=b;
+  const spPr=el.getElementsByTagNameNS(NSMAP.p,'spPr')[0];
   const prstGeom=el.getElementsByTagNameNS(NSMAP.a,'prstGeom')[0];
   const prst=prstGeom?.getAttribute('prst')||'rect';
   const ph=el.getElementsByTagNameNS(NSMAP.p,'ph')[0];
   const phType=ph?.getAttribute('type')||'';
   const txBody=el.getElementsByTagNameNS(NSMAP.p,'txBody')[0];
-  const isConnector=['line','straightConnector1','bentConnector2','bentConnector3','bentConnector4','bentConnector5','curvedConnector2','curvedConnector3'].includes(prst);
-  if(isConnector){
-    const stroke=resolveClr(spPr?.getElementsByTagNameNS(NSMAP.a,'solidFill')[0],TC)||'#94a3b8';
-    return`<line x1="${x.toFixed(1)}" y1="${(y+h/2).toFixed(1)}" x2="${(x+w).toFixed(1)}" y2="${(y+h/2).toFixed(1)}" stroke="${stroke}" stroke-width="1"/>`;
+
+  // Connectors → simple line
+  const CONN=['line','straightConnector1','bentConnector2','bentConnector3','bentConnector4','bentConnector5','curvedConnector2','curvedConnector3'];
+  if(CONN.includes(prst)){
+    const{stroke,sw}=shapeOutline(spPr,TC);
+    const sc=stroke==='none'?'#94a3b8':stroke;
+    return`<line x1="${x.toFixed(1)}" y1="${(y+h).toFixed(1)}" x2="${(x+w).toFixed(1)}" y2="${y.toFixed(1)}" stroke="${sc}" stroke-width="${Math.max(0.5,sw)}"/>`;
   }
-  const fallbackFill=phType?'none':'rgba(200,200,200,0.25)';
-  const fill=resolveFill(spPr,TC,fallbackFill);
-  const strokeEl=spPr?.getElementsByTagNameNS(NSMAP.a,'ln')[0];
-  const strokeFill=strokeEl?.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
-  let stroke='none'; if(strokeFill){const c=resolveClr(strokeFill,TC);if(c)stroke=c;}
-  const sw=strokeEl?Math.max(0.5,(+(strokeEl.getAttribute('w')||0))/12700):0;
-  const TR=rot?`transform="rotate(${rot.toFixed(2)} ${(x+w/2).toFixed(1)} ${(y+h/2).toFixed(1)})"`:''
+
+  const fallback=phType?'none':'rgba(180,180,180,0.15)';
+  const fill=resolveFill(spPr,TC,fallback);
+  const{stroke,sw}=shapeOutline(spPr,TC);
+
+  const cx=x+w/2, cy=y+h/2;
+  let transforms=[];
+  if(rot)transforms.push(`rotate(${rot.toFixed(2)},${cx.toFixed(1)},${cy.toFixed(1)})`);
+  if(flipH)transforms.push(`scale(-1,1) translate(${(-2*cx).toFixed(1)},0)`);
+  if(flipV)transforms.push(`scale(1,-1) translate(0,${(-2*cy).toFixed(1)})`);
+  const TR=transforms.length?`transform="${transforms.join(' ')}"`:'';
+
+  const A=(attr,val)=>` ${attr}="${val}"`;
   let shape='';
   if(prst==='ellipse'||prst==='oval'){
-    shape=`<ellipse cx="${(x+w/2).toFixed(1)}" cy="${(y+h/2).toFixed(1)}" rx="${(w/2).toFixed(1)}" ry="${(h/2).toFixed(1)}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" ${TR}/>`;
+    shape=`<ellipse cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${(w/2).toFixed(1)}" ry="${(h/2).toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
   }else if(prst==='roundRect'){
-    const rx=Math.min(8,w*0.08,h*0.08);
-    shape=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="${rx.toFixed(1)}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" ${TR}/>`;
+    const adj=prstGeom?.getElementsByTagNameNS(NSMAP.a,'gd')[0]?.getAttribute('fmla')||'val 16667';
+    const frac=+(adj.split(' ')[1]||16667)/100000;
+    const rx=Math.min(w/2,h/2)*frac;
+    shape=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="${rx.toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
   }else if(prst==='triangle'){
-    const pts=`${(x+w/2).toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${(y+h).toFixed(1)}`;
-    shape=`<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" ${TR}/>`;
+    shape=`<polygon points="${(x+w/2).toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${(y+h).toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
   }else if(prst==='rtTriangle'){
-    const pts=`${x.toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${(y+h).toFixed(1)}`;
-    shape=`<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" ${TR}/>`;
+    shape=`<polygon points="${x.toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${(y+h).toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
   }else if(prst==='diamond'){
-    const pts=`${(x+w/2).toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${(y+h/2).toFixed(1)} ${(x+w/2).toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${(y+h/2).toFixed(1)}`;
-    shape=`<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" ${TR}/>`;
+    shape=`<polygon points="${cx.toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${cy.toFixed(1)} ${cx.toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${cy.toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
   }else if(prst==='hexagon'){
     const q=w/4;
-    const pts=`${(x+q).toFixed(1)},${y.toFixed(1)} ${(x+w-q).toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${(y+h/2).toFixed(1)} ${(x+w-q).toFixed(1)},${(y+h).toFixed(1)} ${(x+q).toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${(y+h/2).toFixed(1)}`;
-    shape=`<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" ${TR}/>`;
+    shape=`<polygon points="${(x+q).toFixed(1)},${y.toFixed(1)} ${(x+w-q).toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${cy.toFixed(1)} ${(x+w-q).toFixed(1)},${(y+h).toFixed(1)} ${(x+q).toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${cy.toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
   }else if(prst==='chevron'){
-    const d=Math.min(w*0.2,h/2);
-    const pts=`${x.toFixed(1)},${y.toFixed(1)} ${(x+w-d).toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${(y+h/2).toFixed(1)} ${(x+w-d).toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${(y+h).toFixed(1)} ${(x+d).toFixed(1)},${(y+h/2).toFixed(1)}`;
-    shape=`<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" ${TR}/>`;
-  }else if(prst==='rightArrow'||prst==='arrow'){
-    const ah=h*0.4,ay=(h-ah)/2,d=Math.min(w*0.35,h);
-    const pts=`${x.toFixed(1)},${(y+ay).toFixed(1)} ${(x+w-d).toFixed(1)},${(y+ay).toFixed(1)} ${(x+w-d).toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${(y+h/2).toFixed(1)} ${(x+w-d).toFixed(1)},${(y+h).toFixed(1)} ${(x+w-d).toFixed(1)},${(y+h-ay).toFixed(1)} ${x.toFixed(1)},${(y+h-ay).toFixed(1)}`;
-    shape=`<polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" ${TR}/>`;
+    const d=Math.min(w*.2,h/2);
+    shape=`<polygon points="${x.toFixed(1)},${y.toFixed(1)} ${(x+w-d).toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${cy.toFixed(1)} ${(x+w-d).toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${(y+h).toFixed(1)} ${(x+d).toFixed(1)},${cy.toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='pentagon'){
+    const d=w*.19;
+    shape=`<polygon points="${cx.toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${(y+h*0.38).toFixed(1)} ${(x+w-d).toFixed(1)},${(y+h).toFixed(1)} ${(x+d).toFixed(1)},${(y+h).toFixed(1)} ${x.toFixed(1)},${(y+h*0.38).toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='rightArrow'){
+    const ah=h*.4,ay=(h-ah)/2,aw=Math.min(w*.35,h);
+    shape=`<polygon points="${x.toFixed(1)},${(y+ay).toFixed(1)} ${(x+w-aw).toFixed(1)},${(y+ay).toFixed(1)} ${(x+w-aw).toFixed(1)},${y.toFixed(1)} ${(x+w).toFixed(1)},${cy.toFixed(1)} ${(x+w-aw).toFixed(1)},${(y+h).toFixed(1)} ${(x+w-aw).toFixed(1)},${(y+h-ay).toFixed(1)} ${x.toFixed(1)},${(y+h-ay).toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
+  }else if(prst==='star5'){
+    // Simple 5-pointed star approximation
+    const pts=[],R=Math.min(w,h)/2,r=R*0.382;
+    for(let i=0;i<10;i++){const a=Math.PI*i/5-Math.PI/2,ra=i%2?r:R;pts.push(`${(cx+ra*Math.cos(a)).toFixed(1)},${(cy+ra*Math.sin(a)).toFixed(1)}`);}
+    shape=`<polygon points="${pts.join(' ')}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
   }else{
-    shape=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" ${TR}/>`;
+    shape=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
   }
-  let txt='';
-  if(txBody&&fill!=='none'){
-    const lines=getTextLines(txBody,8);
-    if(lines.length){
-      const px=getFontPx(txBody,phType==='ctrTitle'||phType==='title'?18:12);
-      const tc=TC.dk1?'#'+TC.dk1:'#0f172a';
-      const clipId=`c${Math.abs(Math.round(x*10+y*7))}`;
-      txt=`<clipPath id="${clipId}"><rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}"/></clipPath><g clip-path="url(#${clipId})">${svgText(lines,x,y,w,h,px,tc)}</g>`;
-    }
-  }
+  const txt=foText(txBody,b,TC,defaultFont);
   return shape+txt;
 }
-function renderPicSvg(el,sx,sy){
+
+function renderPicSvg(el,sx,sy,sRels,entries){
   const b=svgBox(el,sx,sy);if(!b)return'';
-  const{x,y,w,h}=b;
-  return`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="#e2f3ef" rx="2"/><text x="${(x+w/2).toFixed(1)}" y="${(y+h/2).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(8,Math.min(18,h*.4)).toFixed(1)}" fill="#0f766e" font-family="system-ui">🖼</text>`;
+  const{x,y,w,h,rot}=b;
+  const blipFill=el.getElementsByTagNameNS(NSMAP.p,'blipFill')[0];
+  const blip=blipFill?.getElementsByTagNameNS(NSMAP.a,'blip')[0];
+  const rId=blip?.getAttributeNS(NSMAP.r,'embed')||blip?.getAttribute('r:embed')||blip?.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','embed');
+  const rel=rId&&sRels?sRels[rId]:null;
+  const imgKey=rel?Object.keys(entries||{}).find(k=>k.endsWith(rel.target.split('/').pop())):null;
+  const TR=rot?`transform="rotate(${rot.toFixed(2)},${(x+w/2).toFixed(1)},${(y+h/2).toFixed(1)})"`:''
+  if(imgKey&&entries[imgKey]){
+    const du=binToDataUrl(entries[imgKey],imgKey);
+    if(du)return`<image x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" href="${du}" preserveAspectRatio="xMidYMid meet" ${TR}/>`;
+  }
+  // Fallback: light gray box
+  return`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="#e8ecf0" rx="1" ${TR}/><line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${(x+w).toFixed(1)}" y2="${(y+h).toFixed(1)}" stroke="#c8d0d8" stroke-width="0.5"/><line x1="${(x+w).toFixed(1)}" y1="${y.toFixed(1)}" x2="${x.toFixed(1)}" y2="${(y+h).toFixed(1)}" stroke="#c8d0d8" stroke-width="0.5"/>`;
 }
-function renderTableSvg(tbl,box,TC){
+
+function renderTableSvg(tbl,box,TC,defaultFont){
   const{x,y,w,h}=box;
   const rows=[...tbl.getElementsByTagNameNS(NSMAP.a,'tr')];
   if(!rows.length)return'';
-  const rh=Math.max(h/rows.length,1);
+  // Use actual row heights if set, else distribute evenly
+  let rowHeights=rows.map(r=>+(r.getAttribute('h')||0));
+  const totalH=rowHeights.reduce((s,v)=>s+v,0);
+  if(!totalH){const rh=h/rows.length;rowHeights=rows.map(()=>rh);}
+  else{const sc=h/totalH;rowHeights=rowHeights.map(v=>v*sc);}
+  // Col widths from tblGrid
+  const tblGrid=tbl.getElementsByTagNameNS(NSMAP.a,'tblGrid')[0];
+  const gridCols=tblGrid?[...tblGrid.getElementsByTagNameNS(NSMAP.a,'gridCol')]:[];
+  let colWidths=gridCols.map(c=>+(c.getAttribute('w')||0));
+  const totalW=colWidths.reduce((s,v)=>s+v,0);
+  if(!totalW||!gridCols.length){const cw=w/(rows[0]?.getElementsByTagNameNS(NSMAP.a,'tc').length||1);colWidths=Array(rows[0]?.getElementsByTagNameNS(NSMAP.a,'tc').length||1).fill(cw);}
+  else{const sc=w/totalW;colWidths=colWidths.map(v=>v*sc);}
+
   let out=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="none" stroke="#e2e8f0" stroke-width="0.5"/>`;
+  let ry=y;
   rows.forEach((row,ri)=>{
-    const ry=y+ri*rh;
+    const rh=rowHeights[ri];
     const cells=[...row.getElementsByTagNameNS(NSMAP.a,'tc')];
-    if(!cells.length)return;
-    const cw=w/cells.length;
+    let cx2=x;
     cells.forEach((cell,ci)=>{
-      const cx2=x+ci*cw;
+      const cw2=colWidths[ci]||w/cells.length;
       const tcPr=cell.getElementsByTagNameNS(NSMAP.a,'tcPr')[0];
       const sf=tcPr?.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
       let cf=sf?resolveClr(sf,TC)||'none':'none';
-      if(cf==='none'&&ri===0)cf='#'+((TC.accent1||'206efb'))+'33';
-      else if(cf==='none'&&ri%2===0)cf='#f8fafc';
-      out+=`<rect x="${cx2.toFixed(1)}" y="${ry.toFixed(1)}" width="${cw.toFixed(1)}" height="${rh.toFixed(1)}" fill="${cf}" stroke="#e2e8f0" stroke-width="0.5"/>`;
+      if(cf==='none'&&ri===0)cf='#'+(TC.accent1||'206efb')+'28';
+      else if(cf==='none'&&ri%2===0)cf='rgba(248,250,252,.8)';
+      out+=`<rect x="${cx2.toFixed(1)}" y="${ry.toFixed(1)}" width="${cw2.toFixed(1)}" height="${rh.toFixed(1)}" fill="${cf}" stroke="#e2e8f0" stroke-width="0.5"/>`;
       const tb=cell.getElementsByTagNameNS(NSMAP.a,'txBody')[0];
-      if(tb){const ls=getTextLines(tb,1);if(ls[0]){const fs=Math.max(5,Math.min(rh*.55,9));const mc=Math.max(1,Math.floor(cw/(fs*.55)));const t=(ls[0].length>mc?ls[0].slice(0,mc-1)+'…':ls[0]).replace(/&/g,'&amp;').replace(/</g,'&lt;');out+=`<text x="${(cx2+cw/2).toFixed(1)}" y="${(ry+rh/2).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${fs.toFixed(1)}" fill="${ri===0?'#fff':'#0f172a'}" font-family="system-ui">${t}</text>`;}}
+      if(tb)out+=foText(tb,{x:cx2,y:ry,w:cw2,h:rh},TC,defaultFont);
+      cx2+=cw2;
     });
+    ry+=rh;
   });
   return out;
 }
-function renderGraphicFrameSvg(el,sx,sy,TC){
+
+function renderGraphicFrameSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont){
   const b=svgBox(el,sx,sy);if(!b)return'';
   const{x,y,w,h}=b;
   const gd=el.getElementsByTagNameNS(NSMAP.a,'graphicData')[0];
   const uri=gd?.getAttribute('uri')||'';
   if(uri===CHART_URI){
     const ac='#'+(TC.accent1||'206efb');
-    return`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="${ac}18" rx="3" stroke="${ac}" stroke-width="1" stroke-opacity="0.5"/><text x="${(x+w/2).toFixed(1)}" y="${(y+h/2).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(8,Math.min(16,h*.25)).toFixed(1)}" fill="${ac}" font-family="system-ui">📊</text>`;
+    return`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="${ac}14" rx="2" stroke="${ac}" stroke-width="0.8" stroke-opacity="0.6"/><text x="${(x+w/2).toFixed(1)}" y="${(y+h/2-6).toFixed(1)}" text-anchor="middle" font-size="${Math.max(8,Math.min(14,h*.18)).toFixed(1)}" fill="${ac}" font-family="system-ui" opacity="0.7">▦ Diagramm</text>`;
   }
   if(uri===TABLE_URI){
     const tbl=gd?.getElementsByTagNameNS(NSMAP.a,'tbl')[0];
-    if(tbl&&tbl.getElementsByTagNameNS(NSMAP.a,'tr').length)return renderTableSvg(tbl,b,TC);
+    if(tbl&&tbl.getElementsByTagNameNS(NSMAP.a,'tr').length)
+      return renderTableSvg(tbl,b,TC,defaultFont);
   }
   return'';
 }
-function renderNodeSvg(el,sx,sy,TC){
+
+function renderNodeSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont){
   const ln=el.localName;
-  if(ln==='sp')return renderSpSvg(el,sx,sy,TC);
-  if(ln==='pic')return renderPicSvg(el,sx,sy);
-  if(ln==='graphicFrame')return renderGraphicFrameSvg(el,sx,sy,TC);
+  if(ln==='sp')return renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont);
+  if(ln==='pic')return renderPicSvg(el,sx,sy,sRels,entries);
+  if(ln==='graphicFrame')return renderGraphicFrameSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont);
   if(ln==='cxnSp'){
     const b=svgBox(el,sx,sy);if(!b)return'';
     const{x,y,w,h}=b;
-    return`<line x1="${x.toFixed(1)}" y1="${(y+h/2).toFixed(1)}" x2="${(x+w).toFixed(1)}" y2="${(y+h/2).toFixed(1)}" stroke="#94a3b8" stroke-width="0.8"/>`;
+    const spPr=el.getElementsByTagNameNS(NSMAP.p,'spPr')[0];
+    const{stroke,sw}=shapeOutline(spPr,TC);
+    const sc=stroke==='none'?'#94a3b8':stroke;
+    return`<line x1="${x.toFixed(1)}" y1="${(y+h).toFixed(1)}" x2="${(x+w).toFixed(1)}" y2="${y.toFixed(1)}" stroke="${sc}" stroke-width="${Math.max(0.5,sw)}"/>`;
   }
-  if(ln==='grpSp'){let out='';for(const ch of el.children)out+=renderNodeSvg(ch,sx,sy,TC);return out;}
+  if(ln==='grpSp'){
+    let out='';
+    for(const ch of el.children)out+=renderNodeSvg(ch,sx,sy,TC,sRels,entries,slidePn,defaultFont);
+    return out;
+  }
   return'';
 }
+
+// Resolve slide background: check slide → layout → master
+function getSlideBackground(slideDoc, slide, a, entries) {
+  const TC=a.theme.colors||{};
+  // 1. Slide-level explicit background
+  const bgPr=slideDoc.getElementsByTagNameNS(NSMAP.p,'bgPr')[0];
+  if(bgPr){
+    const sf=bgPr.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
+    if(sf){const c=resolveClr(sf,TC);if(c)return c;}
+    const gf=bgPr.getElementsByTagNameNS(NSMAP.a,'gradFill')[0];
+    if(gf){const gs=gf.getElementsByTagNameNS(NSMAP.a,'gs')[0];if(gs){const c=resolveClr(gs,TC);if(c)return c;}}
+    // blipFill (image bg) — return neutral
+    if(bgPr.getElementsByTagNameNS(NSMAP.a,'blipFill')[0])return null; // handled separately
+  }
+  // 2. Check if slide has <p:bg> with <p:bgRef> referencing a fill from master theme
+  const bgRef=slideDoc.getElementsByTagNameNS(NSMAP.p,'bgRef')[0];
+  if(bgRef){const c=resolveClr(bgRef,TC);if(c)return c;}
+  // 3. Fall back to theme lt1
+  return '#'+(TC.lt1||'FFFFFF');
+}
+
 function renderSlideToSvg(slideIdx, W, H) {
   W=W||960; H=H||540;
   const a=S.analysis; if(!a)return'';
@@ -981,24 +1118,40 @@ function renderSlideToSvg(slideIdx, W, H) {
   const SW=a.slideWidth||12192000, SH=a.slideHeight||6858000;
   const sx=W/SW, sy=H/SH;
   const TC=a.theme.colors||{};
-  const bgColor='#'+(TC.lt1||'FFFFFF');
+  const defaultFont=a.theme.minorFont||'Calibri';
 
   const slideData=S.entries?.[slide.partname];
-  if(!slideData)return`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="${bgColor}"/></svg>`;
+  if(!slideData){
+    return`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="#fff"/><text x="${W/2}" y="${H/2}" text-anchor="middle" font-family="system-ui" font-size="14" fill="#94a3b8">Folie nicht verfügbar</text></svg>`;
+  }
 
   const doc=parseXml(slideData);
-  let bgFill=bgColor;
-  const bgPr=doc.getElementsByTagNameNS(NSMAP.p,'bgPr')[0];
-  if(bgPr){const sf=bgPr.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];if(sf){const c=resolveClr(sf,TC);if(c)bgFill=c;}}
+  const sRels=parseRels(S.entries?.[relsKey(slide.partname)]);
+
+  // Background
+  const bgFill=getSlideBackground(doc,slide,a,S.entries)||'#FFFFFF';
+  // Image background
+  let bgImgEl='';
+  const bgBlipFill=doc.getElementsByTagNameNS(NSMAP.p,'bgPr')[0]?.getElementsByTagNameNS(NSMAP.a,'blipFill')[0];
+  if(bgBlipFill){
+    const blip=bgBlipFill.getElementsByTagNameNS(NSMAP.a,'blip')[0];
+    const rId=blip?.getAttributeNS(NSMAP.r,'embed')||blip?.getAttribute('r:embed');
+    const rel=rId&&sRels?sRels[rId]:null;
+    const imgKey=rel?Object.keys(S.entries||{}).find(k=>k.endsWith(rel.target.split('/').pop())):null;
+    if(imgKey&&S.entries[imgKey]){const du=binToDataUrl(S.entries[imgKey],imgKey);if(du)bgImgEl=`<image width="${W}" height="${H}" href="${du}" preserveAspectRatio="xMidYMid slice"/>`;}
+  }
 
   const tree=xq1(doc,'p','spTree');
   let shapes='';
-  if(tree){for(const ch of tree.children)shapes+=renderNodeSvg(ch,sx,sy,TC);}
+  if(tree){
+    for(const ch of tree.children)
+      shapes+=renderNodeSvg(ch,sx,sy,TC,sRels,S.entries,slide.partname,defaultFont);
+  }
 
-  return`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="${bgFill}"/>${shapes}</svg>`;
+  return`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><rect width="${W}" height="${H}" fill="${bgFill}"/>${bgImgEl}${shapes}</svg>`;
 }
 
-// Small thumbnail version (fast, keeps colored rect fallback for speed)
+// Thumbnail — fast colored-rect version (no foreignObject overhead for 20+ thumbs)
 function renderSlideSvg(slide, analysis) {
   const W=168, H=94;
   const SW=analysis.slideWidth||12192000, SH=analysis.slideHeight||6858000;
@@ -1010,8 +1163,7 @@ function renderSlideSvg(slide, analysis) {
   for(const it of slide.shapeItems||[]){
     const x=(it.x*sx).toFixed(1),y=(it.y*sy).toFixed(1);
     const w=Math.max(it.w*sx,2).toFixed(1),h=Math.max(it.h*sy,2).toFixed(1);
-    const f=FILL[it.shapeType]||FILL.other;
-    shapes+=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1" fill="${f}"/>`;
+    shapes+=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1" fill="${FILL[it.shapeType]||FILL.other}"/>`;
   }
   if(!shapes)shapes=`<rect x="10" y="10" width="${W-20}" height="14" rx="2" fill="rgba(15,23,42,.1)"/><rect x="10" y="30" width="${W-40}" height="7" rx="1" fill="rgba(15,23,42,.06)"/><rect x="10" y="41" width="${W-50}" height="7" rx="1" fill="rgba(15,23,42,.06)"/>`;
   return`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><rect width="${W}" height="${H}" fill="${bg}"/>${shapes}</svg>`;

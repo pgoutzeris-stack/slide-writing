@@ -975,15 +975,27 @@ function foText(txBody, box, TC, defaultFont, defaultTextColor, txLevels) {
   return`<foreignObject x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}"><div xmlns="http://www.w3.org/1999/xhtml" style="width:100%;height:100%;display:flex;flex-direction:column;justify-content:${valign};overflow:hidden;padding:${mT.toFixed(1)}px ${mR.toFixed(1)}px ${mB.toFixed(1)}px ${mL.toFixed(1)}px;box-sizing:border-box;${rotStyle}">${pHtml}</div></foreignObject>`;
 }
 
-function shapeOutline(spPr,TC){
+function shapeOutline(spEl,TC){
+  // spEl = full p:sp element (not just spPr)
+  const spPr=spEl?.getElementsByTagNameNS?.(NSMAP.p,'spPr')[0]??spEl;
   const ln=spPr?.getElementsByTagNameNS(NSMAP.a,'ln')[0];
-  if(!ln)return{stroke:'none',sw:0};
-  const noFill=ln.getElementsByTagNameNS(NSMAP.a,'noFill')[0];
-  if(noFill)return{stroke:'none',sw:0};
-  const sf=ln.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
-  const stroke=sf?resolveClr(sf,TC)||'#000':'#000';
-  const sw=Math.max(0.5,(+(ln.getAttribute('w')||9525))/12700);
-  return{stroke,sw};
+  if(ln){
+    if(ln.getElementsByTagNameNS(NSMAP.a,'noFill')[0])return{stroke:'none',sw:0};
+    const sf=ln.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
+    const stroke=sf?resolveClr(sf,TC)||'#000':'#000';
+    const sw=Math.max(0.5,(+(ln.getAttribute('w')||9525))/12700);
+    return{stroke,sw};
+  }
+  // Fallback: p:style > a:lnRef
+  const styleEl=spEl?.getElementsByTagNameNS?.(NSMAP.p,'style')[0];
+  const lnRef=styleEl?.getElementsByTagNameNS(NSMAP.a,'lnRef')[0];
+  if(lnRef){
+    const idx=+(lnRef.getAttribute('idx')||0);
+    if(idx===0)return{stroke:'none',sw:0};
+    const c=resolveClr(lnRef,TC);
+    return c&&c!=='none'?{stroke:c,sw:0.75}:{stroke:'none',sw:0};
+  }
+  return{stroke:'none',sw:0};
 }
 
 // Approximate shape fill from p:style > a:fillRef (theme format scheme)
@@ -999,9 +1011,9 @@ function getStyleFill(spEl, TC){
   const hex=c.replace('#','');
   if(hex.length!==6)return c;
   const r=parseInt(hex.slice(0,2),16),g=parseInt(hex.slice(2,4),16),b=parseInt(hex.slice(4,6),16);
-  // idx 1 = subtle (very light), idx 2 = moderate (~65%), idx 3+ = solid
-  if(idx===1)return`rgba(${r},${g},${b},0.1)`;
-  if(idx===2)return`rgba(${r},${g},${b},0.65)`;
+  // idx 1 = subtle tint, idx 2 = moderate, idx 3+ = solid
+  if(idx===1)return`rgba(${r},${g},${b},0.22)`;
+  if(idx===2)return`rgba(${r},${g},${b},0.6)`;
   return c;
 }
 
@@ -1014,45 +1026,55 @@ function getStyleTextColor(spEl, TC){
   return resolveClr(fontRef,TC)||null;
 }
 
-// Build a map {phType → box, 'idx:N' → box} from a slide layout/master spTree
+// Build placeholder position map AND lstStyle map from a layout/master spTree.
+// Returns { map: {key→box}, lst: {key→lstStyleEl} }
 function buildPhMap(doc, sx, sy){
-  const map={};
+  const map={}, lst={};
   const tree=xq1(doc,'p','spTree');
-  if(!tree)return map;
+  if(!tree)return{map,lst};
   for(const sp of tree.children){
     if(sp.localName!=='sp')continue;
     const ph=sp.getElementsByTagNameNS(NSMAP.p,'ph')[0];
     if(!ph)continue;
+    // empty type = body placeholder
     const ptype=ph.getAttribute('type')||'body';
     const pidx=ph.getAttribute('idx')||'';
     const b=svgBox(sp,sx,sy);
-    if(!b)continue;
-    if(ptype&&!map['t:'+ptype])map['t:'+ptype]=b;
-    if(pidx!==''&&!map['i:'+pidx])map['i:'+pidx]=b;
+    const keys=[];
+    if(ptype){keys.push('t:'+ptype);}
+    if(pidx!==''){keys.push('i:'+pidx);}
+    for(const k of keys){
+      if(b&&!map[k])map[k]=b;
+      const txBody=sp.getElementsByTagNameNS(NSMAP.p,'txBody')[0];
+      const lstEl=txBody?.getElementsByTagNameNS(NSMAP.a,'lstStyle')[0];
+      if(lstEl&&!lst[k])lst[k]=lstEl;
+    }
   }
-  return map;
+  return{map,lst};
 }
 
-function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap){
+function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap,phLst){
   let b=svgBox(el,sx,sy);
   const ph=el.getElementsByTagNameNS(NSMAP.p,'ph')[0];
   const phType=ph?.getAttribute('type')||'';
   const phIdx=ph?.getAttribute('idx')||'';
   // Placeholder with no xfrm → look up from layout/master map
+  // Empty type means body placeholder — look up 't:body' not 't:'
   if(!b&&ph&&phMap){
-    b=phMap['t:'+phType]||phMap['i:'+phIdx]||null;
+    const lookupType=phType||'body';
+    b=phMap['t:'+lookupType]||phMap['i:'+phIdx]||null;
   }
   if(!b)return'';
   const{x,y,w,h,rot,flipH,flipV}=b;
   const spPr=el.getElementsByTagNameNS(NSMAP.p,'spPr')[0];
   const prstGeom=spPr?.getElementsByTagNameNS(NSMAP.a,'prstGeom')[0];
-  const prst=prstGeom?.getAttribute('prst')||(ph?'rect':'rect');
+  const prst=prstGeom?.getAttribute('prst')||'rect';
   const txBody=el.getElementsByTagNameNS(NSMAP.p,'txBody')[0];
 
   // Connectors → simple line
   const CONN=['line','straightConnector1','bentConnector2','bentConnector3','bentConnector4','bentConnector5','curvedConnector2','curvedConnector3'];
   if(CONN.includes(prst)){
-    const{stroke,sw}=shapeOutline(spPr,TC);
+    const{stroke,sw}=shapeOutline(el,TC);
     const sc=stroke==='none'?'#94a3b8':stroke;
     const x1=flipH?x+w:x, y1=flipV?y+h:y, x2=flipH?x:x+w, y2=flipV?y:y+h;
     return`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${sc}" stroke-width="${Math.max(0.5,sw)}"/>`;
@@ -1061,8 +1083,8 @@ function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap){
   // Fill: explicit spPr > solidFill/gradFill/noFill, else style fillRef, else transparent for ph
   const explicitFill=resolveFill(spPr,TC,null);
   const styleFill=explicitFill===null?getStyleFill(el,TC):null;
-  const fill=explicitFill!==null?explicitFill:(styleFill||( phType?'none':'rgba(180,180,180,0.08)'));
-  const{stroke,sw}=shapeOutline(spPr,TC);
+  const fill=explicitFill!==null?explicitFill:(styleFill||(ph?'none':'rgba(180,180,180,0.08)'));
+  const{stroke,sw}=shapeOutline(el,TC);
   // Default text color from style fontRef
   const styleTextClr=getStyleTextColor(el,TC);
 
@@ -1108,12 +1130,58 @@ function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap){
   }else{
     shape=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
   }
-  // Pick txStyle levels: title→titleStyle, body/obj/dt/ftr→bodyStyle, else otherStyle
-  const isTitlePh = phType==='title'||phType==='ctrTitle';
-  const isBodyPh  = phType==='body'||phType==='obj'||phType===''||phType==='subTitle';
-  const txLevels  = isTitlePh ? (TC._txSty?.title)
-                  : isBodyPh  ? (TC._txSty?.body)
-                  : (TC._txSty?.other);
+  // txStyle levels from master — only for real placeholder shapes
+  // isBodyPh requires ph to exist (phType==='' on a non-ph shape must not use bodyStyle)
+  const isTitlePh = ph && (phType==='title'||phType==='ctrTitle');
+  const isBodyPh  = ph && (phType==='body'||phType==='obj'||phType===''||phType==='subTitle');
+  const masterLevels = isTitlePh ? (TC._txSty?.title)
+                     : isBodyPh  ? (TC._txSty?.body)
+                     : ph        ? (TC._txSty?.other)
+                     : null;
+
+  // Step 1.5: layout placeholder lstStyle overrides master txStyle per level
+  // Look up the layout's lstStyle for this placeholder, merge its non-null levels over master
+  const lookupKey = ph ? ('t:'+(phType||'body')) : null;
+  const layoutLst = lookupKey&&phLst ? (phLst[lookupKey]||phLst['i:'+phIdx]||null) : null;
+  let txLevels = masterLevels;
+  if(layoutLst && masterLevels){
+    txLevels = masterLevels.map((entry,i)=>{
+      const lp=layoutLst.getElementsByTagNameNS(NSMAP.a,`lvl${i+1}pPr`)[0];
+      const dr=lp?.getElementsByTagNameNS(NSMAP.a,'defRPr')[0];
+      if(!dr)return entry;
+      const szAttr=dr.getAttribute('sz');
+      const bAttr=dr.getAttribute('b');
+      const sf=dr.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
+      const sc=sf?.getElementsByTagNameNS(NSMAP.a,'schemeClr')[0];
+      const srgb=sf?.getElementsByTagNameNS(NSMAP.a,'srgbClr')[0];
+      const lat=dr.getElementsByTagNameNS(NSMAP.a,'latin')[0];
+      return{
+        sz:   szAttr?+szAttr/100:(entry?.sz||null),
+        bold: bAttr==='1'||(bAttr!=='0'&&(entry?.bold||false)),
+        color:sf?(srgb?'#'+srgb.getAttribute('val'):sc?'__scheme__'+sc.getAttribute('val'):entry?.color):(entry?.color||null),
+        font: lat?.getAttribute('typeface')||entry?.font||null,
+      };
+    });
+  } else if(layoutLst && !masterLevels){
+    // No master txStyle — build from layout lstStyle alone
+    txLevels=[];
+    for(let i=0;i<9;i++){
+      const lp=layoutLst.getElementsByTagNameNS(NSMAP.a,`lvl${i+1}pPr`)[0];
+      const dr=lp?.getElementsByTagNameNS(NSMAP.a,'defRPr')[0];
+      if(!dr){txLevels.push(null);continue;}
+      const szAttr=dr.getAttribute('sz');
+      const sf=dr.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
+      const sc=sf?.getElementsByTagNameNS(NSMAP.a,'schemeClr')[0];
+      const srgb=sf?.getElementsByTagNameNS(NSMAP.a,'srgbClr')[0];
+      const lat=dr.getElementsByTagNameNS(NSMAP.a,'latin')[0];
+      txLevels.push({
+        sz:szAttr?+szAttr/100:null, bold:dr.getAttribute('b')==='1',
+        color:sf?(srgb?'#'+srgb.getAttribute('val'):sc?'__scheme__'+sc.getAttribute('val'):null):null,
+        font:lat?.getAttribute('typeface')||null,
+      });
+    }
+  }
+
   const txt=foText(txBody,b,TC,defaultFont,styleTextClr,txLevels);
   return shape+txt;
 }
@@ -1192,23 +1260,22 @@ function renderGraphicFrameSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont){
   return'';
 }
 
-function renderNodeSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap){
+function renderNodeSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap,phLst){
   const ln=el.localName;
-  if(ln==='sp')return renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap);
+  if(ln==='sp')return renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap,phLst);
   if(ln==='pic')return renderPicSvg(el,sx,sy,sRels,entries);
   if(ln==='graphicFrame')return renderGraphicFrameSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont);
   if(ln==='cxnSp'){
     const b=svgBox(el,sx,sy);if(!b)return'';
     const{x,y,w,h,flipH,flipV}=b;
-    const spPr=el.getElementsByTagNameNS(NSMAP.p,'spPr')[0];
-    const{stroke,sw}=shapeOutline(spPr,TC);
+    const{stroke,sw}=shapeOutline(el,TC);
     const sc=stroke==='none'?'#94a3b8':stroke;
     const x1=flipH?x+w:x, y1=flipV?y+h:y, x2=flipH?x:x+w, y2=flipV?y:y+h;
     return`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${sc}" stroke-width="${Math.max(0.5,sw)}"/>`;
   }
   if(ln==='grpSp'){
     let out='';
-    for(const ch of el.children)out+=renderNodeSvg(ch,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap);
+    for(const ch of el.children)out+=renderNodeSvg(ch,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap,phLst);
     return out;
   }
   return'';
@@ -1224,7 +1291,7 @@ function renderLayerShapes(doc,sx,sy,TC,rels,entries,pn,defaultFont,skipPh){
       const ph=ch.getElementsByTagNameNS(NSMAP.p,'ph')[0];
       if(ph)continue;
     }
-    out+=renderNodeSvg(ch,sx,sy,TC,rels,entries,pn,defaultFont,{});
+    out+=renderNodeSvg(ch,sx,sy,TC,rels,entries,pn,defaultFont,{},{});
   }
   return out;
 }
@@ -1311,10 +1378,10 @@ function renderSlideToSvg(slideIdx, W, H) {
     mRels=parseRels(S.entries[relsKey(a.masterPn)]);
   }
 
-  // Build placeholder position map: layout first (overrides master)
-  const phMap={};
-  if(mDoc){const m=buildPhMap(mDoc,sx,sy);Object.assign(phMap,m);}
-  if(lDoc){const l=buildPhMap(lDoc,sx,sy);Object.assign(phMap,l);}
+  // Build placeholder position + lstStyle maps: master first, layout overrides
+  const phMap={}, phLst={};
+  if(mDoc){const{map:mm,lst:ml}=buildPhMap(mDoc,sx,sy);Object.assign(phMap,mm);Object.assign(phLst,ml);}
+  if(lDoc){const{map:lm,lst:ll}=buildPhMap(lDoc,sx,sy);Object.assign(phMap,lm);Object.assign(phLst,ll);}
 
   // Background color (cascade slide→layout→master→theme)
   const bgFill=getSlideBackground(doc,slide,a,S.entries)||'#FFFFFF';
@@ -1340,12 +1407,12 @@ function renderSlideToSvg(slideIdx, W, H) {
   const masterShapes=mDoc?renderLayerShapes(mDoc,sx,sy,TC,mRels||{},S.entries,a.masterPn,defaultFont,true):'';
   const layoutShapes=lDoc?renderLayerShapes(lDoc,sx,sy,TC,lRels||{},S.entries,slide.layoutPartname,defaultFont,true):'';
 
-  // Slide shapes with phMap for placeholder positioning
+  // Slide shapes with phMap + phLst for placeholder positioning and text defaults
   const tree=xq1(doc,'p','spTree');
   let slideShapes='';
   if(tree){
     for(const ch of tree.children)
-      slideShapes+=renderNodeSvg(ch,sx,sy,TC,sRels,S.entries,slide.partname,defaultFont,phMap);
+      slideShapes+=renderNodeSvg(ch,sx,sy,TC,sRels,S.entries,slide.partname,defaultFont,phMap,phLst);
   }
 
   return`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><rect width="${W}" height="${H}" fill="${bgFill}"/>${bgImgEl}${masterShapes}${layoutShapes}${slideShapes}</svg>`;
@@ -1440,8 +1507,9 @@ async function analyzePptx(entries) {
           const szAttr = dRPr.getAttribute('sz');
           const bAttr  = dRPr.getAttribute('b');
           const sf = dRPr.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
-          const sc = dRPr.getElementsByTagNameNS(NSMAP.a,'schemeClr')[0];
-          const srgb = dRPr.getElementsByTagNameNS(NSMAP.a,'srgbClr')[0];
+          // color elements are INSIDE solidFill, not directly on dRPr
+          const sc   = sf?.getElementsByTagNameNS(NSMAP.a,'schemeClr')[0];
+          const srgb = sf?.getElementsByTagNameNS(NSMAP.a,'srgbClr')[0];
           const lat = dRPr.getElementsByTagNameNS(NSMAP.a,'latin')[0];
           levels.push({
             sz:    szAttr ? +szAttr/100 : null,

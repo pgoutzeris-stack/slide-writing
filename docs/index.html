@@ -1406,22 +1406,47 @@ function renderTableSvg(tbl,box,TC,defaultFont){
   if(!totalW||!gridCols.length){const cw=w/(rows[0]?.getElementsByTagNameNS(NSMAP.a,'tc').length||1);colWidths=Array(rows[0]?.getElementsByTagNameNS(NSMAP.a,'tc').length||1).fill(cw);}
   else{const sc=w/totalW;colWidths=colWidths.map(v=>v*sc);}
 
+  const tblPr=tbl.getElementsByTagNameNS(NSMAP.a,'tblPr')[0];
+  const firstRow=tblPr?.getAttribute('firstRow')==='1';
+  const lastRow=tblPr?.getAttribute('lastRow')==='1';
+  const bandRow=tblPr?.getAttribute('bandRow')!=='0'; // default true in PowerPoint
+  const ac='#'+(TC.accent1||'206efb');
+
   let out=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="none" stroke="#e2e8f0" stroke-width="0.5"/>`;
   let ry=y;
   rows.forEach((row,ri)=>{
     const rh=rowHeights[ri];
+    const isHeader=firstRow&&ri===0;
+    const isLastRow=lastRow&&ri===rows.length-1;
+    const isBand=bandRow&&!isHeader&&ri%2===1;
     const cells=[...row.getElementsByTagNameNS(NSMAP.a,'tc')];
     let cx2=x;
     cells.forEach((cell,ci)=>{
       const cw2=colWidths[ci]||w/cells.length;
       const tcPr=cell.getElementsByTagNameNS(NSMAP.a,'tcPr')[0];
-      const sf=tcPr?.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
+      const sf=tcPr?.getElementsByTagNameNS(NSMAP.a,'solidFill')[0]||
+               tcPr?.getElementsByTagNameNS(NSMAP.a,'gradFill')?.[0];
       let cf=sf?resolveClr(sf,TC)||'none':'none';
-      if(cf==='none'&&ri===0)cf='#'+(TC.accent1||'206efb')+'28';
-      else if(cf==='none'&&ri%2===0)cf='rgba(248,250,252,.8)';
-      out+=`<rect x="${cx2.toFixed(1)}" y="${ry.toFixed(1)}" width="${cw2.toFixed(1)}" height="${rh.toFixed(1)}" fill="${cf}" stroke="#e2e8f0" stroke-width="0.5"/>`;
+      if(cf==='none'){
+        if(isHeader)cf=ac;
+        else if(isLastRow)cf=ac+'26';
+        else if(isBand)cf=ac+'14';
+        else cf='none';
+      }
+      out+=`<rect x="${cx2.toFixed(1)}" y="${ry.toFixed(1)}" width="${cw2.toFixed(1)}" height="${rh.toFixed(1)}" fill="${cf}" stroke="#e2e8f0" stroke-width="0.3"/>`;
+      // Cell bottom border (most visible in tables)
+      const lnB=tcPr?.getElementsByTagNameNS(NSMAP.a,'lnB')[0];
+      if(lnB&&!lnB.getElementsByTagNameNS(NSMAP.a,'noFill')[0]){
+        const bsf=lnB.getElementsByTagNameNS(NSMAP.a,'solidFill')[0];
+        const bc=bsf?resolveClr(bsf,TC)||'#e2e8f0':'#e2e8f0';
+        const bw=Math.max(0.5,+(lnB.getAttribute('w')||9525)/12700);
+        out+=`<line x1="${cx2.toFixed(1)}" y1="${(ry+rh).toFixed(1)}" x2="${(cx2+cw2).toFixed(1)}" y2="${(ry+rh).toFixed(1)}" stroke="${bc}" stroke-width="${bw}"/>`;
+      }
       const tb=cell.getElementsByTagNameNS(NSMAP.a,'txBody')[0];
-      if(tb)out+=foText(tb,{x:cx2,y:ry,w:cw2,h:rh},TC,defaultFont);
+      if(tb){
+        const textClr=isHeader?('#'+(TC.lt1||'FFFFFF')):null;
+        out+=foText(tb,{x:cx2,y:ry,w:cw2,h:rh},TC,defaultFont,textClr);
+      }
       cx2+=cw2;
     });
     ry+=rh;
@@ -1443,6 +1468,8 @@ function renderChartSvg(chartDoc,box,TC){
   const hasPie=qc('pieChart').length>0||qc('doughnutChart').length>0;
   const isDoughnut=qc('doughnutChart').length>0;
   const isHorizontal=hasBar&&qc('barChart')[0]?.getElementsByTagNameNS(NS_C,'barDir')[0]?.getAttribute('val')==='bar';
+  const hasArea=qc('areaChart').length>0;
+  const hasScatter=qc('scatterChart').length>0;
 
   // Extract series
   const serEls=qc('ser');
@@ -1459,6 +1486,31 @@ function renderChartSvg(chartDoc,box,TC){
   const pad={t:12,r:8,b:24,l:28};
   const cw=w-pad.l-pad.r, ch=h-pad.t-pad.b;
   const cx=x+pad.l, cy2=y+pad.t;
+
+  if(hasArea){
+    let out=`<line x1="${cx}" y1="${cy2}" x2="${cx}" y2="${cy2+ch}" stroke="#e2e8f0" stroke-width="0.5"/>`;
+    out+=`<line x1="${cx}" y1="${cy2+ch}" x2="${cx+cw}" y2="${cy2+ch}" stroke="#e2e8f0" stroke-width="0.5"/>`;
+    const step=cw/(nCats-1||1);
+    series.forEach((s,si)=>{
+      const pts=s.vals.map((v,i)=>{
+        const px=cx+i*step;
+        const py=cy2+ch-(v-minV)/range*ch;
+        return[px.toFixed(1),py.toFixed(1)];
+      });
+      if(!pts.length)return;
+      const poly=pts.map(p=>p.join(',')).join(' ');
+      const first=pts[0], last=pts[pts.length-1];
+      // Area fill polygon: points + bottom corners
+      const areaPts=poly+` ${last[0]},${(cy2+ch).toFixed(1)} ${cx.toFixed(1)},${(cy2+ch).toFixed(1)}`;
+      out+=`<polygon points="${areaPts}" fill="${C(si)}" opacity="0.25"/>`;
+      out+=`<polyline points="${poly}" fill="none" stroke="${C(si)}" stroke-width="${Math.max(1,h*0.018)}"/>`;
+    });
+    cats.forEach((c2,i)=>{
+      const px=cx+i*step;
+      out+=`<text x="${px.toFixed(1)}" y="${(cy2+ch+10).toFixed(1)}" text-anchor="middle" font-size="${Math.max(6,Math.min(9,cw/nCats*0.4)).toFixed(1)}" fill="#94a3b8" font-family="system-ui">${c2.length>6?c2.slice(0,5)+'…':c2}</text>`;
+    });
+    return out;
+  }
 
   if(hasPie){
     // Pie / Donut
@@ -1514,6 +1566,34 @@ function renderChartSvg(chartDoc,box,TC){
       out+=`<text x="${px.toFixed(1)}" y="${(cy2+ch+10).toFixed(1)}" text-anchor="middle" font-size="${Math.max(6,Math.min(9,cw/nCats*0.4)).toFixed(1)}" fill="#94a3b8" font-family="system-ui">${c2.length>6?c2.slice(0,5)+'…':c2}</text>`;
     });
     return out;
+  }
+
+  if(hasScatter){
+    // Scatter uses xVal + yVal instead of cat + val
+    const scSeries=serEls.map((s,si)=>{
+      const xVals=[...s.getElementsByTagNameNS(NS_C,'xVal')[0]?.getElementsByTagNameNS(NS_C,'v')||[]].map(e=>+e.textContent||0);
+      const yVals=[...s.getElementsByTagNameNS(NS_C,'yVal')[0]?.getElementsByTagNameNS(NS_C,'v')||[]].map(e=>+e.textContent||0);
+      return{xVals,yVals};
+    }).filter(s=>s.xVals.length&&s.yVals.length);
+    if(scSeries.length){
+      const allX=scSeries.flatMap(s=>s.xVals);
+      const allY=scSeries.flatMap(s=>s.yVals);
+      const minX=Math.min(...allX),maxX=Math.max(...allX,0.001);
+      const minY2=Math.min(0,...allY),maxY2=Math.max(...allY,0.001);
+      const rangeX=maxX-minX||1,rangeY2=maxY2-minY2||1;
+      let out=`<line x1="${cx}" y1="${cy2}" x2="${cx}" y2="${cy2+ch}" stroke="#e2e8f0" stroke-width="0.5"/>`;
+      out+=`<line x1="${cx}" y1="${cy2+ch}" x2="${cx+cw}" y2="${cy2+ch}" stroke="#e2e8f0" stroke-width="0.5"/>`;
+      const r2=Math.max(2,h*0.02);
+      scSeries.forEach((s,si)=>{
+        s.xVals.forEach((xv,i)=>{
+          const yv=s.yVals[i]??0;
+          const px=cx+(xv-minX)/rangeX*cw;
+          const py=cy2+ch-(yv-minY2)/rangeY2*ch;
+          out+=`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${r2.toFixed(1)}" fill="${C(si)}" opacity="0.8"/>`;
+        });
+      });
+      return out;
+    }
   }
 
   // Bar/Column (default)

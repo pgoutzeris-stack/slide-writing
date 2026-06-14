@@ -61,8 +61,8 @@ body{font-family:'Circular Std',system-ui,sans-serif;color:var(--ink);background
 .slide-thumb{border-radius:10px;overflow:hidden;cursor:pointer;margin-bottom:.4rem;border:1.5px solid transparent;transition:all .2s ease;background:#fff;box-shadow:var(--shadow-sm)}
 .slide-thumb:hover{border-color:var(--brand-light);box-shadow:var(--shadow)}
 .slide-thumb.active{border-color:var(--brand)}
-.slide-thumb-preview{width:100%;aspect-ratio:16/9;background:var(--bg-surface);overflow:hidden;position:relative}
-.slide-thumb-preview svg{width:100%;height:100%}
+.slide-thumb-preview{width:100%;aspect-ratio:16/9;background:var(--bg-surface);overflow:hidden;position:relative;display:flex;align-items:center;justify-content:center}
+.slide-thumb-preview svg{display:block}
 .slide-thumb-info{padding:.35rem .5rem .45rem}
 .slide-thumb-num{font-size:.62rem;font-weight:700;color:var(--brand);margin-bottom:.1rem}
 .slide-thumb-title{font-size:.72rem;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
@@ -157,7 +157,8 @@ body{font-family:'Circular Std',system-ui,sans-serif;color:var(--ink);background
 .spec-slides{padding:.5rem .75rem;max-height:180px;overflow-y:auto}
 .spec-slide-item{display:flex;align-items:center;gap:.75rem;padding:.45rem .25rem;border-bottom:1px solid var(--bg-surface);font-size:.82rem}
 .spec-slide-item:last-child{border-bottom:none}
-.spec-slide-preview svg{width:100%;border-radius:6px;border:1px solid var(--line)}
+.spec-slide-preview{aspect-ratio:16/9;border-radius:6px;border:1px solid var(--line);overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg-surface)}
+.spec-slide-preview svg{display:block}
 .spec-slide-num{width:22px;height:22px;border-radius:50%;background:var(--brand-light);color:var(--brand);font-size:.7rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .spec-slide-type{font-size:.68rem;font-weight:700;padding:.1rem .45rem;border-radius:4px;background:var(--bg-surface);color:var(--muted);white-space:nowrap}
 .spec-slide-title{flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -199,8 +200,12 @@ body{font-family:'Circular Std',system-ui,sans-serif;color:var(--ink);background
 /* Slide View Layout */
 .slide-view-layout{display:flex;gap:1.25rem;margin-bottom:1.5rem;min-height:0}
 .slide-main-preview{flex:1;min-width:0;display:flex;flex-direction:column;gap:.6rem}
-.slide-preview-stage{width:100%;aspect-ratio:16/9;background:var(--bg-surface);border-radius:var(--radius);border:1px solid var(--line);overflow:hidden;box-shadow:var(--shadow)}
-.slide-preview-stage svg{width:100%;height:100%;display:block}
+.slide-preview-stage{width:100%;aspect-ratio:16/9;background:var(--bg-surface);border-radius:var(--radius);border:1px solid var(--line);overflow:hidden;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center}
+.slide-preview-stage svg{display:block}
+/* slide is rendered at native point-size and fitted via transform:scale (NOT
+   width:100%) — Chromium mis-wraps <foreignObject> text when the SVG is scaled
+   via width/height. transform:scale composites the already-wrapped layout. */
+.slide-scale-fit{transform-origin:top left}
 .slide-preview-nav{display:flex;align-items:center;justify-content:center;gap:.75rem}
 .slide-preview-nav .nav-label{font-size:.8rem;color:var(--muted);font-weight:600;min-width:90px;text-align:center}
 .nav-btn{width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.75rem;transition:all .2s ease}
@@ -1132,11 +1137,13 @@ function foText(txBody, box, TC, defaultFont, defaultTextColor, txLevels) {
   const bodyPr=txBody.getElementsByTagNameNS(NSMAP.a,'bodyPr')[0];
   const anchor=bodyPr?.getAttribute('anchor')||'t';
   const valign={t:'flex-start',ctr:'center',b:'flex-end'}[anchor]||'flex-start';
-  // Insets are EMU → points (coordinate unit). 1pt = 12700 EMU.
-  const mL=+(bodyPr?.getAttribute('marL')??91440)/12700;
-  const mR=+(bodyPr?.getAttribute('marR')??91440)/12700;
-  const mT=+(bodyPr?.getAttribute('marT')??45720)/12700;
-  const mB=+(bodyPr?.getAttribute('marB')??45720)/12700;
+  // Text-body insets are lIns/tIns/rIns/bIns on a:bodyPr (NOT marL/… — those are
+  // table-cell/paragraph attrs). EMU → points (1pt = 12700 EMU). PP defaults:
+  // lIns/rIns = 91440 (0.1"), tIns/bIns = 45720 (0.05").
+  const mL=+(bodyPr?.getAttribute('lIns')??91440)/12700;
+  const mR=+(bodyPr?.getAttribute('rIns')??91440)/12700;
+  const mT=+(bodyPr?.getAttribute('tIns')??45720)/12700;
+  const mB=+(bodyPr?.getAttribute('bIns')??45720)/12700;
   const vert=bodyPr?.getAttribute('vert');
   const isVert=vert&&vert!=='horz'&&vert!=='';
   // normAutofit: PowerPoint shrank the text to fit — apply the same scale so we
@@ -1231,7 +1238,11 @@ function foText(txBody, box, TC, defaultFont, defaultTextColor, txLevels) {
       const wgt=bold?700:(fst.weight!=null?fst.weight:400);
       const italOut=ital||fst.italic;
 
-      const style=`font-size:${fs}px;color:${color};font-family:${fst.family};font-weight:${wgt};${italOut?'font-style:italic;':''}${uline?'text-decoration:underline;':''}${strike?'text-decoration:line-through;':''}white-space:pre-wrap;`;
+      // white-space: pre-line (NOT pre-wrap). Chromium mis-wraps pre-wrap text inside
+      // a scaled SVG <foreignObject> — it wraps far narrower than the box, causing
+      // overflow/overlap on non-16:9 or scaled decks. pre-line wraps correctly and
+      // still honors newlines; runs of spaces collapse (negligible, and cleaner).
+      const style=`font-size:${fs}px;color:${color};font-family:${fst.family};font-weight:${wgt};${italOut?'font-style:italic;':''}${uline?'text-decoration:underline;':''}${strike?'text-decoration:line-through;':''}white-space:pre-line;`;
       const escaped=txt.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       runHtml+=`<span style="${style}">${escaped}</span>`;
     }
@@ -2908,12 +2919,26 @@ function addLoading() {
   box.appendChild(d); box.scrollTop=box.scrollHeight;
 }
 
+// Mount a slide SVG into a container, fitted via transform:scale (NOT width:100%).
+// The SVG is rendered at native point-size so its <foreignObject> text wraps
+// correctly; transform:scale then fits it to the container without re-wrapping.
+function mountScaledSlide(container, slideIdx) {
+  const a = S.analysis; if (!a) return;
+  const Wpt = (a.slideWidth||12192000)/12700, Hpt = (a.slideHeight||6858000)/12700;
+  const svg = renderSlideToSvg(slideIdx, Wpt, Hpt); // native: width=Wpt, viewBox=Wpt → internal scale 1
+  const cw = container.clientWidth || Wpt, ch = container.clientHeight || Hpt;
+  const k = Math.min(cw/Wpt, ch/Hpt) || 1;
+  // Outer box occupies the SCALED size (for layout/centering); inner box is native
+  // size scaled via transform from its top-left so it visually fills the outer box.
+  container.innerHTML = `<div style="position:relative;flex:0 0 auto;width:${(Wpt*k).toFixed(1)}px;height:${(Hpt*k).toFixed(1)}px"><div class="slide-scale-fit" style="position:absolute;top:0;left:0;width:${Wpt.toFixed(1)}px;height:${Hpt.toFixed(1)}px;transform:scale(${k.toFixed(4)})">${svg}</div></div>`;
+}
+
 // ── SLIDE PREVIEW + STATS ──────────────────────────────────
 function renderMainSlidePreview(idx) {
   S.activeSlide = idx;
   const stage = document.getElementById('slide-preview-main');
   if (!stage) return;
-  stage.innerHTML = renderSlideToSvg(idx);
+  mountScaledSlide(stage, idx);
   const total = S.analysis?.slides.length || 1;
   document.getElementById('slide-nav-label').textContent = `Folie ${idx+1} / ${total}`;
   document.getElementById('prev-slide-btn').disabled = idx === 0;
@@ -3012,7 +3037,7 @@ function renderRail() {
     if(!prev||prev.dataset.rendered)return;
     prev.dataset.rendered='1';
     const i=+prev.dataset.idx;
-    try { prev.innerHTML = renderSlideToSvg(i, 320, 180); }
+    try { mountScaledSlide(prev, i); }              // transform:scale fit (correct text wrap)
     catch(_) { try { prev.innerHTML = renderSlideSvg(S.analysis.slides[i], S.analysis); } catch(__){} }
   };
   const previews=[...el.querySelectorAll('.slide-thumb-preview')];
@@ -3184,11 +3209,10 @@ async function renderSpec() {
         elements:[],shapeItems:[],
       };
       a.slides.push(tmpSlide);
-      const svg = renderSlideToSvg(origLen+i, 320, 180);
+      const el = document.getElementById(`spec-prev-${i}`);
+      if (el) { el.style.display='block'; try { mountScaledSlide(el, origLen+i); } catch(_){} }
       a.slides.pop();
       delete S.entries[tmpKey];
-      const el = document.getElementById(`spec-prev-${i}`);
-      if (el && svg) { el.style.display='block'; el.innerHTML=svg; }
     } catch(_) { /* skip preview on error */ }
   }
 }

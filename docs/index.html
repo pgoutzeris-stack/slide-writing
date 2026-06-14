@@ -1160,6 +1160,12 @@ function foText(txBody, box, TC, defaultFont, defaultTextColor, txLevels) {
     return sf?resolveClr(sf,TC)||null:null;
   }
 
+  // Shrink-to-fit is applied ONLY when the XML asks for it (normAutofit fontScale,
+  // handled above). For noAutofit/spAutoFit boxes we render at the true size and
+  // let text flow as PowerPoint does — auto-shrinking those would misalign text
+  // that's intentionally laid out around overlapping graphics (e.g. a centered logo).
+  const autoScale=1;
+
   let pHtml='';
   for(const para of txBody.getElementsByTagNameNS(NSMAP.a,'p')){
     const pPr=para.getElementsByTagNameNS(NSMAP.a,'pPr')[0];
@@ -1204,7 +1210,7 @@ function foText(txBody, box, TC, defaultFont, defaultTextColor, txLevels) {
       if(!txt)continue;
 
       const szAttr=rPr?.getAttribute('sz');
-      const fs=(szAttr?+szAttr/100:(defSz||18))*fontScale;
+      const fs=(szAttr?+szAttr/100:(defSz||18))*fontScale*autoScale;
 
       const bAttr=rPr?.getAttribute('b');
       const bold=bAttr==='1'||(bAttr!=='0'&&defBold);
@@ -1232,9 +1238,8 @@ function foText(txBody, box, TC, defaultFont, defaultTextColor, txLevels) {
     // Line breaks
     for(const br of para.getElementsByTagNameNS(NSMAP.a,'br'))runHtml+='<br/>';
     if(runHtml){
-      // PowerPoint packs single-spaced lines tighter than the browser default
-      // (~1.1× for these geometric sans fonts); space-before/after default to 0.
-      let lh=lnSpcVal?.pct?Math.max(0.95,lnSpcVal.pct):lnSpcVal?.pts?Math.max(0.95,lnSpcVal.pts/((defSz||18)*0.9)):1.1;
+      // PowerPoint single line spacing ≈ 1.2× font; space-before/after default to 0.
+      let lh=lnSpcVal?.pct?Math.max(0.95,lnSpcVal.pct):lnSpcVal?.pts?Math.max(0.95,lnSpcVal.pts/((defSz||18)*0.9)):1.2;
       if(lnSpcReduction)lh=Math.max(0.8,lh*(1-lnSpcReduction));
       const mtop=spcBefVal?.pts?`${spcBefVal.pts.toFixed(1)}px`:spcBefVal?.pct?`${(spcBefVal.pct*0.5).toFixed(1)}em`:'0';
       const mbot=spcAftVal?.pts?`${spcAftVal.pts.toFixed(1)}px`:spcAftVal?.pct?`${(spcAftVal.pct*0.5).toFixed(1)}em`:'0';
@@ -1245,8 +1250,8 @@ function foText(txBody, box, TC, defaultFont, defaultTextColor, txLevels) {
       // spacing). Half-height here would compress the layout and push later lines up.
       const eRPr=para.getElementsByTagNameNS(NSMAP.a,'endParaRPr')[0];
       const eSz=eRPr?.getAttribute('sz');
-      const emptySz=(eSz?+eSz/100:(defSz||18))*fontScale;
-      const elh=lnSpcVal?.pct?Math.max(0.95,lnSpcVal.pct):1.1;
+      const emptySz=(eSz?+eSz/100:(defSz||18))*fontScale*autoScale;
+      const elh=lnSpcVal?.pct?Math.max(0.95,lnSpcVal.pct):1.2;
       pHtml+=`<div style="flex-shrink:0;height:${(emptySz*elh).toFixed(1)}px"></div>`;
     }
   }

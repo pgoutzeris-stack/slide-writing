@@ -885,7 +885,10 @@ function resolveFill(spPr, TC, fallback) {
 //   1 pt = 12700 EMU → 1 SVG unit  (so sz/100 pt ≈ sz/100 SVG px — correct for foreignObject)
 
 function svgBox(el,sx,sy){
-  const xfrm=el.getElementsByTagNameNS(NSMAP.a,'xfrm')[0];
+  // Shapes/pics use a:xfrm (in spPr); a p:graphicFrame (chart/table/SmartArt) uses
+  // p:xfrm for its position. Fall back to p:xfrm so frames get placed & rendered.
+  let xfrm=el.getElementsByTagNameNS(NSMAP.a,'xfrm')[0];
+  if(!xfrm)xfrm=el.getElementsByTagNameNS(NSMAP.p,'xfrm')[0];
   if(!xfrm)return null;
   const off=xfrm.getElementsByTagNameNS(NSMAP.a,'off')[0];
   const ext=xfrm.getElementsByTagNameNS(NSMAP.a,'ext')[0];
@@ -2047,9 +2050,41 @@ function renderNodeSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap,phLst
     return defs+`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${sc}" stroke-width="${lw}"${mStart}${mEnd}/>`;
   }
   if(ln==='grpSp'){
+    // Group children live in the group's CHILD coordinate space (chOff/chExt).
+    // Map them into the parent space: translate(off - chOff*scale) scale(ext/chExt).
+    // Without this, grouped shapes render at raw child coords (often far off-canvas).
+    const gSpPr=el.getElementsByTagNameNS(NSMAP.p,'grpSpPr')[0];
+    const xfrm=gSpPr?.getElementsByTagNameNS(NSMAP.a,'xfrm')[0];
+    let tf='';
+    if(xfrm){
+      const off=xfrm.getElementsByTagNameNS(NSMAP.a,'off')[0];
+      const ext=xfrm.getElementsByTagNameNS(NSMAP.a,'ext')[0];
+      const chOff=xfrm.getElementsByTagNameNS(NSMAP.a,'chOff')[0];
+      const chExt=xfrm.getElementsByTagNameNS(NSMAP.a,'chExt')[0];
+      if(off&&ext&&chOff&&chExt){
+        const ox=+off.getAttribute('x')||0, oy=+off.getAttribute('y')||0;
+        const ecx=+ext.getAttribute('cx')||0, ecy=+ext.getAttribute('cy')||0;
+        const cox=+chOff.getAttribute('x')||0, coy=+chOff.getAttribute('y')||0;
+        const cecx=+chExt.getAttribute('cx')||0, cecy=+chExt.getAttribute('cy')||0;
+        const Sx=cecx?ecx/cecx:1, Sy=cecy?ecy/cecy:1;
+        const Tx=(ox-cox*Sx)*sx, Ty=(oy-coy*Sy)*sy;
+        const parts=[];
+        const rot=+(xfrm.getAttribute('rot')||0)/60000;
+        const flipH=xfrm.getAttribute('flipH')==='1', flipV=xfrm.getAttribute('flipV')==='1';
+        if(rot||flipH||flipV){
+          const ccx=(ox+ecx/2)*sx, ccy=(oy+ecy/2)*sy;
+          if(rot)parts.push(`rotate(${rot.toFixed(2)},${ccx.toFixed(1)},${ccy.toFixed(1)})`);
+          if(flipH)parts.push(`translate(${(2*ccx).toFixed(1)},0) scale(-1,1)`);
+          if(flipV)parts.push(`translate(0,${(2*ccy).toFixed(1)}) scale(1,-1)`);
+        }
+        parts.push(`translate(${Tx.toFixed(2)},${Ty.toFixed(2)})`);
+        if(Sx!==1||Sy!==1)parts.push(`scale(${Sx.toFixed(5)},${Sy.toFixed(5)})`);
+        if(parts.length)tf=` transform="${parts.join(' ')}"`;
+      }
+    }
     let out='';
     for(const ch of el.children)out+=renderNodeSvg(ch,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap,phLst);
-    return out;
+    return `<g${tf}>${out}</g>`;
   }
   return'';
 }

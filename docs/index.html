@@ -1132,12 +1132,18 @@ function foText(txBody, box, TC, defaultFont, defaultTextColor, txLevels) {
   const bodyPr=txBody.getElementsByTagNameNS(NSMAP.a,'bodyPr')[0];
   const anchor=bodyPr?.getAttribute('anchor')||'t';
   const valign={t:'flex-start',ctr:'center',b:'flex-end'}[anchor]||'flex-start';
-  const mL=+(bodyPr?.getAttribute('marL')??91440)/12192000*960;
-  const mR=+(bodyPr?.getAttribute('marR')??91440)/12192000*960;
-  const mT=+(bodyPr?.getAttribute('marT')??45720)/6858000*540;
-  const mB=+(bodyPr?.getAttribute('marB')??45720)/6858000*540;
+  // Insets are EMU → points (coordinate unit). 1pt = 12700 EMU.
+  const mL=+(bodyPr?.getAttribute('marL')??91440)/12700;
+  const mR=+(bodyPr?.getAttribute('marR')??91440)/12700;
+  const mT=+(bodyPr?.getAttribute('marT')??45720)/12700;
+  const mB=+(bodyPr?.getAttribute('marB')??45720)/12700;
   const vert=bodyPr?.getAttribute('vert');
   const isVert=vert&&vert!=='horz'&&vert!=='';
+  // normAutofit: PowerPoint shrank the text to fit — apply the same scale so we
+  // don't overflow either. fontScale/lnSpcReduction are in 1/1000 percent.
+  const normAF=bodyPr?.getElementsByTagNameNS(NSMAP.a,'normAutofit')[0];
+  const fontScale=normAF?(+(normAF.getAttribute('fontScale')||100000)/100000):1;
+  const lnSpcReduction=normAF?(+(normAF.getAttribute('lnSpcReduction')||0)/100000):0;
 
   // lstStyle — shape-level per-level defaults (override txStyles)
   const lstStyle=txBody.getElementsByTagNameNS(NSMAP.a,'lstStyle')[0];
@@ -1198,7 +1204,7 @@ function foText(txBody, box, TC, defaultFont, defaultTextColor, txLevels) {
       if(!txt)continue;
 
       const szAttr=rPr?.getAttribute('sz');
-      const fs=szAttr?+szAttr/100:(defSz||18);
+      const fs=(szAttr?+szAttr/100:(defSz||18))*fontScale;
 
       const bAttr=rPr?.getAttribute('b');
       const bold=bAttr==='1'||(bAttr!=='0'&&defBold);
@@ -1226,18 +1232,29 @@ function foText(txBody, box, TC, defaultFont, defaultTextColor, txLevels) {
     // Line breaks
     for(const br of para.getElementsByTagNameNS(NSMAP.a,'br'))runHtml+='<br/>';
     if(runHtml){
-      const lh=lnSpcVal?.pct?Math.max(1.0,lnSpcVal.pct):lnSpcVal?.pts?Math.max(1.0,lnSpcVal.pts/((defSz||18)*0.75)):1.25;
-      const mtop=spcBefVal?.pts?`${(spcBefVal.pts*0.75).toFixed(1)}px`:spcBefVal?.pct?`${(spcBefVal.pct*0.5).toFixed(1)}em`:'0';
-      const mbot=spcAftVal?.pts?`${(spcAftVal.pts*0.75).toFixed(1)}px`:spcAftVal?.pct?`${(spcAftVal.pct*0.5).toFixed(1)}em`:'0.15em';
+      // PowerPoint packs single-spaced lines tighter than the browser default
+      // (~1.1× for these geometric sans fonts); space-before/after default to 0.
+      let lh=lnSpcVal?.pct?Math.max(0.95,lnSpcVal.pct):lnSpcVal?.pts?Math.max(0.95,lnSpcVal.pts/((defSz||18)*0.9)):1.1;
+      if(lnSpcReduction)lh=Math.max(0.8,lh*(1-lnSpcReduction));
+      const mtop=spcBefVal?.pts?`${spcBefVal.pts.toFixed(1)}px`:spcBefVal?.pct?`${(spcBefVal.pct*0.5).toFixed(1)}em`:'0';
+      const mbot=spcAftVal?.pts?`${spcAftVal.pts.toFixed(1)}px`:spcAftVal?.pct?`${(spcAftVal.pct*0.5).toFixed(1)}em`:'0';
       const indPx=lvl>0?lvl*16:0;
-      pHtml+=`<div style="text-align:${ta};line-height:${lh.toFixed(2)};margin-top:${mtop};margin-bottom:${mbot};${indPx?`padding-left:${indPx}px;`:''}">${runHtml}</div>`;
+      pHtml+=`<div style="flex-shrink:0;text-align:${ta};line-height:${lh.toFixed(2)};margin-top:${mtop};margin-bottom:${mbot};${indPx?`padding-left:${indPx}px;`:''}">${runHtml}</div>`;
     } else {
-      pHtml+=`<div style="height:${((defSz||12)*0.5).toFixed(1)}px"></div>`;
+      // Empty paragraph = one full blank line (PowerPoint uses these for vertical
+      // spacing). Half-height here would compress the layout and push later lines up.
+      const eRPr=para.getElementsByTagNameNS(NSMAP.a,'endParaRPr')[0];
+      const eSz=eRPr?.getAttribute('sz');
+      const emptySz=(eSz?+eSz/100:(defSz||18))*fontScale;
+      const elh=lnSpcVal?.pct?Math.max(0.95,lnSpcVal.pct):1.1;
+      pHtml+=`<div style="flex-shrink:0;height:${(emptySz*elh).toFixed(1)}px"></div>`;
     }
   }
   if(!pHtml)return'';
   const rotStyle=isVert?'writing-mode:vertical-rl;text-orientation:mixed;':'';
-  return`<foreignObject x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}"><div xmlns="http://www.w3.org/1999/xhtml" style="width:100%;height:100%;display:flex;flex-direction:column;justify-content:${valign};overflow:hidden;padding:${mT.toFixed(1)}px ${mR.toFixed(1)}px ${mB.toFixed(1)}px ${mL.toFixed(1)}px;box-sizing:border-box;${rotStyle}">${pHtml}</div></foreignObject>`;
+  // overflow:visible so text that's marginally taller than the box (browser font
+  // metrics differ from PowerPoint's) is shown in full instead of being clipped.
+  return`<foreignObject x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" style="overflow:visible"><div xmlns="http://www.w3.org/1999/xhtml" style="width:100%;height:100%;display:flex;flex-direction:column;justify-content:${valign};overflow:visible;padding:${mT.toFixed(1)}px ${mR.toFixed(1)}px ${mB.toFixed(1)}px ${mL.toFixed(1)}px;box-sizing:border-box;${rotStyle}">${pHtml}</div></foreignObject>`;
 }
 
 function shapeOutline(spEl,TC){
@@ -1639,9 +1656,14 @@ function renderPicSvg(el,sx,sy,sRels,entries){
   const rel=rId&&sRels?sRels[rId]:null;
   const imgKey=rel?Object.keys(entries||{}).find(k=>k.endsWith(rel.target.split('/').pop())):null;
   const TR=rot?`transform="rotate(${rot.toFixed(2)},${(x+w/2).toFixed(1)},${(y+h/2).toFixed(1)})"`:''
+  // PowerPoint fills the picture frame (a:stretch/fillRect is the default), so the
+  // image should fill the box — NOT letterbox ("meet"), which would shrink logos.
+  // a:srcRect (crop) → fill+crop ("slice"); plain stretch/default → "none".
+  const hasCrop=blipFill?.getElementsByTagNameNS(NSMAP.a,'srcRect')[0];
+  const par=hasCrop?'xMidYMid slice':'none';
   if(imgKey&&entries[imgKey]){
     const du=binToDataUrl(entries[imgKey],imgKey);
-    if(du)return`<image x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" href="${du}" preserveAspectRatio="xMidYMid meet" ${TR}/>`;
+    if(du)return`<image x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" href="${du}" preserveAspectRatio="${par}" ${TR}/>`;
   }
   // EMF vector metafile → parse GDI records into a nested SVG at the picture box
   const ext0=(imgKey||rel?.target||'').split('.').pop().toLowerCase();
@@ -2083,15 +2105,18 @@ function getSlideBackground(slideDoc, slide, a, entries) {
 }
 
 function renderSlideToSvg(slideIdx, reqW, reqH) {
-  const targetW=reqW||960, targetH=reqH||540;
   const a=S.analysis; if(!a)return'';
   const slide=a.slides[slideIdx]; if(!slide)return'';
   const SW=a.slideWidth||12192000, SH=a.slideHeight||6858000;
-  // Uniform scale so the slide keeps its true aspect ratio (no horizontal/vertical
-  // squashing on non-16:9 decks). viewBox = fitted content size; container letterboxes.
-  const k=Math.min(targetW/SW, targetH/SH);
-  const W=+(SW*k).toFixed(2), H=+(SH*k).toFixed(2);
-  const sx=k, sy=k;
+  // FIXED coordinate system: 1 SVG unit = 1 point (EMU/12700). The viewBox equals
+  // the slide measured in points, INDEPENDENT of the requested display size. Because
+  // font sizes are also in points, text stays consistent at every size — so the rail
+  // thumbnails and the main stage render identically (just scaled). The slide aspect
+  // ratio is preserved by the viewBox; the display box letterboxes via SVG.
+  const PT=12700;
+  const sx=1/PT, sy=1/PT;
+  const W=+(SW/PT).toFixed(2), H=+(SH/PT).toFixed(2);
+  const dispW=reqW||W, dispH=reqH||H;
   // Resolve THIS slide's master (each layout points to its own master) — masters
   // differ in background AND clrMap (dark masters invert bg1/tx1).
   const masterPn=slide.masterPartname||a.masterPn;
@@ -2197,7 +2222,7 @@ function renderSlideToSvg(slideIdx, reqW, reqH) {
       slideShapes+=renderNodeSvg(ch,sx,sy,TC,sRels,S.entries,slide.partname,defaultFont,phMap,phLst);
   }
 
-  return`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">${bgDefs}<rect width="${W}" height="${H}" fill="${bgFillAttr}"/>${bgImgEl}${masterShapes}${layoutShapes}${slideShapes}</svg>`;
+  return`<svg width="${dispW}" height="${dispH}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">${bgDefs}<rect width="${W}" height="${H}" fill="${bgFillAttr}"/>${bgImgEl}${masterShapes}${layoutShapes}${slideShapes}</svg>`;
 }
 
 // Thumbnail — fast colored-rect version (no foreignObject overhead for 20+ thumbs)

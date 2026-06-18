@@ -3420,7 +3420,14 @@ async function pdfExtractOps(page, vp, U, OPS){
 // ── embedded image → PNG bytes ──────────────────────────────
 async function pdfImagePng(page, im){
   let img = im.img;
-  if(!img){ if(!page.objs.has || !page.objs.has(im.objId)) return null; img = page.objs.get(im.objId); }
+  if(!img){
+    const id=im.objId;
+    if(page.objs && page.objs.has && page.objs.has(id)) img=page.objs.get(id);
+    else img=await Promise.race([
+      new Promise(res=>{ try{ page.objs.get(id, res); }catch(_){ res(null); } }),
+      new Promise(res=>setTimeout(()=>res(null), 3000)),
+    ]);
+  }
   if(!img) return null;
   const w=img.width, h=img.height; if(!w||!h) return null;
   const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
@@ -3442,8 +3449,9 @@ async function pdfImagePng(page, im){
 async function pdfPagePng(page, scale){
   const vp=page.getViewport({scale});
   const cv=document.createElement('canvas'); cv.width=Math.ceil(vp.width); cv.height=Math.ceil(vp.height);
-  await page.render({canvasContext:cv.getContext('2d'), viewport:vp}).promise;
-  const blob=await new Promise(r=>cv.toBlob(r,'image/png'));
+  const ctx=cv.getContext('2d'); ctx.fillStyle='#FFFFFF'; ctx.fillRect(0,0,cv.width,cv.height);  // JPEG has no alpha
+  await page.render({canvasContext:ctx, viewport:vp}).promise;
+  const blob=await new Promise(r=>cv.toBlob(r,'image/jpeg',0.85));
   return new Uint8Array(await blob.arrayBuffer());
 }
 
@@ -3640,34 +3648,42 @@ async function buildPdfSlide(page, idx, deck){
   const media={}, chartsOut={}, rels=[];
   let shapes='', fallback=false;
   try{
-    const lines=await pdfExtractText(page, vp, U);
     const {prims, images}=await pdfExtractOps(page, vp, U, OPS);
-    // drop full-page background rectangles (whole-page fills)
-    for(const p of prims){ if(p.kind==='rect' && p.bbox.w>vp.width*0.93 && p.bbox.h>vp.height*0.93 && !p.stroke) p.used=true; }
-    const charts=detectCharts(prims, lines, vp);
-    const tables=detectTables(prims, lines, vp);
-    for(const c of charts){
-      const cn=deck.chartSeq++; const ckey=`ppt/charts/chart${cn}.xml`;
-      chartsOut[ckey]=pdfChartPartXml(c);
-      const r=newRid(); rels.push(`<Relationship Id="${r}" Type="${PDF_CHART_REL}" Target="../charts/chart${cn}.xml"/>`);
-      shapes+=pdfChartFrameXml(c, sid(), r, EX, EY, EL);
+    // Scanned/OCR page = a single image covering most of the page → render the
+    // whole page as a faithful raster (below) instead of a text-only rebuild.
+    const pageArea=vp.width*vp.height;
+    const scanned=images.some(im=>im.bbox.w*im.bbox.h > pageArea*0.85);
+    if(scanned){
+      fallback=true;
+    } else {
+      const lines=await pdfExtractText(page, vp, U);
+      // drop full-page background rectangles (whole-page fills)
+      for(const p of prims){ if(p.kind==='rect' && p.bbox.w>vp.width*0.93 && p.bbox.h>vp.height*0.93 && !p.stroke) p.used=true; }
+      const charts=detectCharts(prims, lines, vp);
+      const tables=detectTables(prims, lines, vp);
+      for(const c of charts){
+        const cn=deck.chartSeq++; const ckey=`ppt/charts/chart${cn}.xml`;
+        chartsOut[ckey]=pdfChartPartXml(c);
+        const r=newRid(); rels.push(`<Relationship Id="${r}" Type="${PDF_CHART_REL}" Target="../charts/chart${cn}.xml"/>`);
+        shapes+=pdfChartFrameXml(c, sid(), r, EX, EY, EL);
+      }
+      for(const t of tables) shapes+=pdfTableXml(t, sid(), EX, EY, EL);
+      for(const im of images){
+        if(im.used) continue;
+        try{
+          const png=await pdfImagePng(page, im);
+          if(png && png.length){ const mn=deck.mediaSeq++; const mkey=`ppt/media/pdfimg${mn}.png`; media[mkey]=png; const r=newRid(); rels.push(`<Relationship Id="${r}" Type="${PDF_IMAGE_REL}" Target="../media/pdfimg${mn}.png"/>`); shapes+=pdfPicXml(im.bbox, sid(), r, EX, EY, EL); }
+        }catch(_){}
+      }
+      for(const p of prims){ if(p.used) continue; if(p.bbox.w<0.4 && p.bbox.h<0.4) continue; shapes+=pdfVectorXml(p, sid(), EX, EY, EL); }
+      for(const l of lines){ if(l.used || !l.runs.length) continue; shapes+=pdfTextBoxXml(l, sid(), EX, EY, EL); }
     }
-    for(const t of tables) shapes+=pdfTableXml(t, sid(), EX, EY, EL);
-    for(const im of images){
-      if(im.used) continue;
-      try{
-        const png=await pdfImagePng(page, im);
-        if(png && png.length){ const mn=deck.mediaSeq++; const mkey=`ppt/media/pdfimg${mn}.png`; media[mkey]=png; const r=newRid(); rels.push(`<Relationship Id="${r}" Type="${PDF_IMAGE_REL}" Target="../media/pdfimg${mn}.png"/>`); shapes+=pdfPicXml(im.bbox, sid(), r, EX, EY, EL); }
-      }catch(_){}
-    }
-    for(const p of prims){ if(p.used) continue; if(p.bbox.w<0.4 && p.bbox.h<0.4) continue; shapes+=pdfVectorXml(p, sid(), EX, EY, EL); }
-    for(const l of lines){ if(l.used || !l.runs.length) continue; shapes+=pdfTextBoxXml(l, sid(), EX, EY, EL); }
   }catch(e){ console.warn('PDF-Seite '+idx+' Rekonstruktion fehlgeschlagen:', e); fallback=true; }
 
   if(fallback || !shapes.trim()){
-    const png=await pdfPagePng(page, 2);
-    const mn=deck.mediaSeq++; const mkey=`ppt/media/pdfimg${mn}.png`; media[mkey]=png;
-    const r=newRid(); rels.push(`<Relationship Id="${r}" Type="${PDF_IMAGE_REL}" Target="../media/pdfimg${mn}.png"/>`);
+    const jpg=await pdfPagePng(page, 2);
+    const mn=deck.mediaSeq++; const mkey=`ppt/media/pdfimg${mn}.jpg`; media[mkey]=jpg;
+    const r=newRid(); rels.push(`<Relationship Id="${r}" Type="${PDF_IMAGE_REL}" Target="../media/pdfimg${mn}.jpg"/>`);
     shapes=pdfPicXml({x:0,y:0,w:vp.width,h:vp.height}, sid(), r, EX, EY, EL);
   }
   const relsXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${PDF_LAYOUT_REL}" Target="../slideLayouts/slideLayout1.xml"/>${rels.join('')}</Relationships>`;

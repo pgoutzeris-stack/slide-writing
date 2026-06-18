@@ -23,6 +23,27 @@ opening PowerPoint.
 - Generate complete decks from a declarative JSON spec.
 - Run entirely on the Python standard library.
 
+## PDF Import (Web Tool)
+
+The browser tool (`docs/index.html`) accepts **PDF uploads** in addition to
+`.pptx`. Each PDF page is analysed client-side with a vendored copy of
+[pdf.js](https://mozilla.github.io/pdf.js/) (`docs/vendor/`, no server, no API)
+and **rebuilt into native, editable PowerPoint slides** — then shown in the same
+preview and exported as `.pptx` exactly like an uploaded deck:
+
+- **Text** → native editable text boxes (position + font size).
+- **Vectors** → native shapes (`prstGeom` rectangles, `custGeom` freeform paths).
+- **Tables** → native PowerPoint tables (`a:tbl`), reconstructed from the page's
+  ruling lines and cell text.
+- **Charts** → real, editable chart objects (`c:barChart` / `c:lineChart`) with a
+  reconstructed category/value data table (bar height ↔ axis-tick scale).
+- **Images** → embedded pictures; any page that can't be safely reconstructed
+  falls back to a full-page raster image so fidelity is never lost.
+
+The PDF is synthesised into the same in-memory OOXML package an uploaded `.pptx`
+produces, so analysis, SVG preview, and `.pptx` export all reuse the existing
+pipeline.
+
 ## Repository Status
 
 This is a V1 engineering baseline:

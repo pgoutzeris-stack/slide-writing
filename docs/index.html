@@ -239,14 +239,14 @@ body{font-family:'Circular Std',system-ui,sans-serif;color:var(--ink);background
 <div id="upload-phase">
   <div class="upload-brand"><span class="dot"></span>Slide Writing</div>
   <div class="drop-zone" id="drop-zone">
-    <div class="drop-icon"><i class="fa-solid fa-file-powerpoint"></i></div>
-    <h2>PowerPoint-Datei hochladen</h2>
-    <p>Ziehe eine .pptx-Datei hierher oder klicke zum Auswählen.<br>
-       Das Tool analysiert das Design und erstellt per KI neue Folien im exakt gleichen Stil.</p>
+    <div class="drop-icon"><i class="fa-solid fa-file-arrow-up"></i></div>
+    <h2>PowerPoint oder PDF hochladen</h2>
+    <p>Ziehe eine <strong>.pptx</strong>- oder <strong>.pdf</strong>-Datei hierher oder klicke zum Auswählen.<br>
+       PPTX: KI ergänzt Folien im Template-Stil. PDF: jede Seite wird in editierbare native Folien (Text, Vektoren, Tabellen, Diagramme) umgebaut.</p>
     <button class="btn-primary" id="browse-btn">
       <i class="fa-solid fa-folder-open"></i> Datei auswählen
     </button>
-    <input type="file" id="file-input" accept=".pptx">
+    <input type="file" id="file-input" accept=".pptx,.pdf">
   </div>
   <div id="upload-progress" style="display:none;width:min(540px,100%);text-align:center">
     <p style="font-size:.875rem;color:var(--muted)" id="upload-status">Analysiere…</p>
@@ -263,6 +263,9 @@ body{font-family:'Circular Std',system-ui,sans-serif;color:var(--ink);background
       <div id="key-status-chip"></div>
       <button class="icon-btn" id="settings-btn" title="API-Schlüssel konfigurieren">
         <i class="fa-solid fa-gear"></i>
+      </button>
+      <button class="btn-primary" id="download-rebuilt-btn" hidden>
+        <i class="fa-solid fa-file-arrow-down"></i> PowerPoint
       </button>
       <button class="btn-secondary" id="new-upload-btn">
         <i class="fa-solid fa-arrow-up-from-bracket"></i> Neue Datei
@@ -3252,10 +3255,575 @@ async function renderSpec() {
   }
 }
 
+// ══════════════════════════════════════════════════════════════
+// PDF IMPORT  →  native, editierbare PowerPoint (Stufe 1+2+3)
+// Eine PDF wird Seite für Seite mit pdf.js zerlegt (Text, Vektoren,
+// Bilder) und in dasselbe In-Memory-OOXML-Package synthetisiert, das
+// auch ein PPTX-Upload erzeugt. Dadurch laufen Anzeige (renderSlideToSvg)
+// und Export (buildZip) über die bestehende Pipeline.
+// ══════════════════════════════════════════════════════════════
+const PDF_EMU = 12700;                       // EMU pro Punkt (PDF-pt == PPTX-pt)
+const PDF_REL_NS   = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+const PDF_SLIDE_REL  = PDF_REL_NS + '/slide';
+const PDF_LAYOUT_REL = PDF_REL_NS + '/slideLayout';
+const PDF_MASTER_REL = PDF_REL_NS + '/slideMaster';
+const PDF_THEME_REL  = PDF_REL_NS + '/theme';
+const PDF_CHART_REL  = PDF_REL_NS + '/chart';
+const PDF_IMAGE_REL  = PDF_REL_NS + '/image';
+const PDF_OFFICE_REL = PDF_REL_NS + '/officeDocument';
+const PDF_CT_SLIDE = 'application/vnd.openxmlformats-officedocument.presentationml.slide+xml';
+const PDF_CT_CHART = 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
+
+let _pdfjs = null;
+async function loadPdfEngine() {
+  if (_pdfjs) return _pdfjs;
+  const mod = await import('./vendor/pdf.min.mjs');
+  const lib = mod.getDocument ? mod : (mod.default || mod);
+  try { lib.GlobalWorkerOptions.workerSrc = new URL('vendor/pdf.worker.min.mjs', document.baseURI).href; } catch(_) {}
+  _pdfjs = lib;
+  return lib;
+}
+
+// ── colour helpers ──────────────────────────────────────────
+function _clamp255(v){v=Math.round(v);return v<0?0:v>255?255:v;}
+function _hex2(v){return _clamp255(v).toString(16).padStart(2,'0').toUpperCase();}
+function pdfRgbArgs(a){
+  if(!a||!a.length) return null;
+  if(typeof a[0]==='string'){const s=a[0].replace('#','');return s.length===6?s.toUpperCase():null;}
+  return _hex2(a[0])+_hex2(a[1])+_hex2(a[2]);
+}
+function pdfGray(v){const g=_hex2(v*255);return g+g+g;}
+function pdfCmyk(c,m,y,k){return _hex2(255*(1-c)*(1-k))+_hex2(255*(1-m)*(1-k))+_hex2(255*(1-y)*(1-k));}
+function pdfNumVal(s){
+  if(s==null) return null;
+  const m=String(s).replace(/[\s ]/g,'').replace(/\.(?=\d{3}\b)/g,'').replace(',', '.').match(/-?\d+(?:\.\d+)?/);
+  if(!m) return null;
+  const v=parseFloat(m[0]);
+  return isFinite(v)?v:null;
+}
+
+// ── per-page text extraction → line objects (device pt, y-down) ──
+async function pdfExtractText(page, vp, U){
+  // disableCombineTextItems: keep each text run separate so our own baseline +
+  // gap grouping can split axis labels / table cells / columns correctly.
+  const tc = await page.getTextContent({ disableCombineTextItems: true });
+  const items = tc.items || [];
+  const lines = [];
+  let cur = null;
+  const flush = () => { if (cur && cur.runs.length){ cur.w = Math.max(1, cur.right-cur.x); cur.cx = cur.x+cur.w/2; lines.push(cur); } cur = null; };
+  for (const it of items){
+    if (it.type) continue;                                   // marked-content marker
+    const str = it.str; if (str == null) continue;
+    const t = U.transform(vp.transform, it.transform);
+    const fs = Math.hypot(t[2], t[3]) || Math.hypot(t[0], t[1]) || 10;
+    const x = t[4], baseY = t[5];
+    const w = it.width || str.length*fs*0.5;
+    const right = x + w;
+    if (!str.trim()){                                        // whitespace item: pdf.js emits wide synthetic spaces for layout gaps
+      if (cur && w > 0){ if (w > cur.fs) flush(); else cur.right = Math.max(cur.right, right); }   // wide gap → split block; real space → extend
+      if (it.hasEOL) flush();
+      continue;
+    }
+    // New text block on a baseline change OR a wide horizontal gap (keeps axis
+    // labels / table cells / columns as separate, correctly-placed text boxes).
+    const newLine = !cur || Math.abs(baseY - cur.baseY) > Math.max(cur.fs, fs)*0.6 || (x - cur.right) > Math.max(cur.fs, fs)*1.2;
+    if (newLine){ flush(); cur = {x, baseY, top: baseY - fs*0.82, fs, right, runs: []}; }
+    else if (cur.runs.length && x - cur.right > fs*0.28) cur.runs.push({str:' '});
+    cur.runs.push({str});
+    cur.right = right; cur.x = Math.min(cur.x, x); cur.fs = Math.max(cur.fs, fs); cur.top = Math.min(cur.top, baseY - fs*0.82);
+    if (it.hasEOL) flush();
+  }
+  flush();
+  for (const l of lines){ l.h = l.fs*1.18; l.text = l.runs.map(r=>r.str).join(''); l.used = false; }
+  return lines;
+}
+
+// ── per-page operator list → vector primitives + images ─────
+async function pdfExtractOps(page, vp, U, OPS){
+  const ol = await page.getOperatorList();
+  let ctm = vp.transform.slice();
+  const stack = [];
+  let fill='000000', stroke='000000', lw=1, path=null;
+  const prims = [], images = [];
+  const dev = (x,y)=>U.applyTransform([x,y], ctm);
+  const scaleOf = ()=>Math.hypot(ctm[0], ctm[1])||1;
+  function parsePath(args){
+    const ops=args[0], co=args[1]; let k=0;
+    const segs=[]; let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9,nRect=0,nOther=0;
+    const P=(x,y)=>{const p=dev(x,y); if(p[0]<minx)minx=p[0]; if(p[0]>maxx)maxx=p[0]; if(p[1]<miny)miny=p[1]; if(p[1]>maxy)maxy=p[1]; return p;};
+    for(const op of ops){
+      if(op===OPS.moveTo){segs.push(['M',P(co[k],co[k+1])]);k+=2;nOther++;}
+      else if(op===OPS.lineTo){segs.push(['L',P(co[k],co[k+1])]);k+=2;nOther++;}
+      else if(op===OPS.curveTo){segs.push(['C',P(co[k],co[k+1]),P(co[k+2],co[k+3]),P(co[k+4],co[k+5])]);k+=6;nOther++;}
+      else if(op===OPS.curveTo2){const a=P(co[k],co[k+1]),b=P(co[k+2],co[k+3]);segs.push(['C',a,b,b]);k+=4;nOther++;}
+      else if(op===OPS.curveTo3){const a=P(co[k],co[k+1]),b=P(co[k+2],co[k+3]);segs.push(['C',a,a,b]);k+=4;nOther++;}
+      else if(op===OPS.closePath){segs.push(['Z']);}
+      else if(op===OPS.rectangle){const x=co[k],y=co[k+1],w=co[k+2],h=co[k+3];k+=4;const a=P(x,y),b=P(x+w,y),c=P(x+w,y+h),d=P(x,y+h);segs.push(['M',a],['L',b],['L',c],['L',d],['Z']);nRect++;}
+    }
+    const axisAligned = Math.abs(ctm[1])<1e-3 && Math.abs(ctm[2])<1e-3;
+    return {segs, bbox:{x:minx,y:miny,w:maxx-minx,h:maxy-miny}, rectOnly:(nRect===1&&nOther===0&&axisAligned), nSeg:segs.length, nRect};
+  }
+  function emit(kind){
+    if(!path||!path.segs.length) return;
+    const p = parseEmit(path, kind);
+    if(p) prims.push(p);
+  }
+  function parseEmit(pp, kind){
+    const bb=pp.bbox; if(!(bb.w>=0&&bb.h>=0)) return null;
+    const isLineSeg = pp.segs.length===2 && pp.segs[0][0]==='M' && pp.segs[1][0]==='L';
+    return {
+      kind: pp.rectOnly ? 'rect' : 'path',
+      segs: pp.segs, bbox: bb,
+      fill: (kind==='fill'||kind==='fillstroke') ? fill : null,
+      stroke: (kind==='stroke'||kind==='fillstroke') ? stroke : null,
+      lw: Math.max(0.25, lw*scaleOf()),
+      isLine: isLineSeg,
+      horiz: isLineSeg && Math.abs(pp.segs[0][1][1]-pp.segs[1][1][1])<1.2,
+      vert:  isLineSeg && Math.abs(pp.segs[0][1][0]-pp.segs[1][1][0])<1.2,
+      used: false,
+    };
+  }
+  for(let i=0;i<ol.fnArray.length;i++){
+    const fn=ol.fnArray[i], a=ol.argsArray[i];
+    switch(fn){
+      case OPS.save: stack.push(ctm.slice()); break;
+      case OPS.restore: ctm = stack.pop()||ctm; break;
+      case OPS.transform: ctm = U.transform(ctm, a); break;
+      case OPS.setLineWidth: lw = a[0]||lw; break;
+      case OPS.setFillRGBColor: fill = pdfRgbArgs(a)||fill; break;
+      case OPS.setStrokeRGBColor: stroke = pdfRgbArgs(a)||stroke; break;
+      case OPS.setFillGray: fill = pdfGray(a[0]); break;
+      case OPS.setStrokeGray: stroke = pdfGray(a[0]); break;
+      case OPS.setFillCMYKColor: fill = pdfCmyk(a[0],a[1],a[2],a[3]); break;
+      case OPS.setStrokeCMYKColor: stroke = pdfCmyk(a[0],a[1],a[2],a[3]); break;
+      case OPS.constructPath: path = parsePath(a); break;
+      case OPS.fill: case OPS.eoFill: emit('fill'); break;
+      case OPS.stroke: emit('stroke'); break;
+      case OPS.fillStroke: case OPS.eoFillStroke: emit('fillstroke'); break;
+      case OPS.endPath: path=null; break;
+      case OPS.paintImageXObject: case OPS.paintJpegXObject: {
+        const c0=dev(0,0),c1=dev(1,0),c2=dev(1,1),c3=dev(0,1);
+        const xs=[c0[0],c1[0],c2[0],c3[0]], ys=[c0[1],c1[1],c2[1],c3[1]];
+        images.push({objId:a[0], bbox:{x:Math.min(...xs),y:Math.min(...ys),w:Math.max(...xs)-Math.min(...xs),h:Math.max(...ys)-Math.min(...ys)}, used:false});
+        break;
+      }
+      case OPS.paintInlineImageXObject: {
+        const c0=dev(0,0),c2=dev(1,1);
+        images.push({img:a[0], bbox:{x:Math.min(c0[0],c2[0]),y:Math.min(c0[1],c2[1]),w:Math.abs(c2[0]-c0[0]),h:Math.abs(c2[1]-c0[1])}, used:false});
+        break;
+      }
+    }
+  }
+  return {prims, images};
+}
+
+// ── embedded image → PNG bytes ──────────────────────────────
+async function pdfImagePng(page, im){
+  let img = im.img;
+  if(!img){ if(!page.objs.has || !page.objs.has(im.objId)) return null; img = page.objs.get(im.objId); }
+  if(!img) return null;
+  const w=img.width, h=img.height; if(!w||!h) return null;
+  const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+  const ctx=cv.getContext('2d');
+  if(img.bitmap){ ctx.drawImage(img.bitmap,0,0); }
+  else if(img.data){
+    const cd=ctx.createImageData(w,h), s=img.data;
+    if(s.length===w*h*4){ cd.data.set(s); }
+    else if(s.length===w*h*3){ for(let i=0,j=0;i<w*h;i++){cd.data[j++]=s[i*3];cd.data[j++]=s[i*3+1];cd.data[j++]=s[i*3+2];cd.data[j++]=255;} }
+    else if(s.length===w*h){ for(let i=0;i<w*h;i++){const v=s[i];cd.data[i*4]=v;cd.data[i*4+1]=v;cd.data[i*4+2]=v;cd.data[i*4+3]=255;} }
+    else return null;
+    ctx.putImageData(cd,0,0);
+  } else return null;
+  const blob=await new Promise(r=>cv.toBlob(r,'image/png')); if(!blob) return null;
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
+// ── whole-page raster (Stufe-1 fallback) ────────────────────
+async function pdfPagePng(page, scale){
+  const vp=page.getViewport({scale});
+  const cv=document.createElement('canvas'); cv.width=Math.ceil(vp.width); cv.height=Math.ceil(vp.height);
+  await page.render({canvasContext:cv.getContext('2d'), viewport:vp}).promise;
+  const blob=await new Promise(r=>cv.toBlob(r,'image/png'));
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
+// ── chart detection (confidence-gated) ──────────────────────
+function pdfAxisScale(labels){
+  if(labels.length<2) return null;
+  const s=labels.slice().sort((a,b)=>a.y-b.y);
+  const a=s[0], b=s[s.length-1];
+  if(Math.abs(b.y-a.y)<2 || a.v===b.v) return null;
+  return (y)=> a.v + (b.v-a.v)*(y-a.y)/(b.y-a.y);
+}
+function detectCharts(prims, lines, vp){
+  const charts=[];
+  const bars = prims.filter(p=>!p.used && p.kind==='rect' && p.fill && p.bbox.w>1 && p.bbox.h>1 && p.bbox.w<vp.width*0.30 && p.bbox.h<vp.height*0.92);
+  // group vertical bars by shared baseline (bottom edge)
+  const byBase={};
+  for(const b of bars){ const base=Math.round((b.bbox.y+b.bbox.h)/3)*3; (byBase[base]=byBase[base]||[]).push(b); }
+  for(const key of Object.keys(byBase)){
+    const grp=byBase[key].sort((a,b)=>a.bbox.x-b.bbox.x);
+    if(grp.length<3) continue;
+    const ws=grp.map(g=>g.bbox.w).sort((a,b)=>a-b);
+    if(ws[ws.length-1] > ws[0]*2.6) continue;               // bar widths must be similar
+    const baseline=Math.max(...grp.map(g=>g.bbox.y+g.bbox.h));
+    const minTop=Math.min(...grp.map(g=>g.bbox.y));
+    const minX=Math.min(...grp.map(g=>g.bbox.x)), maxX=Math.max(...grp.map(g=>g.bbox.x+g.bbox.w));
+    // y-axis numeric labels (left of bars)
+    const axisLabels=[];
+    for(const l of lines){ if(l.used) continue; const v=pdfNumVal(l.text); if(v==null) continue; if(l.cx<minX && l.baseY>minTop-20 && l.baseY<baseline+20) axisLabels.push({y:l.baseY, v, line:l}); }
+    const scale=pdfAxisScale(axisLabels);
+    const cats=[], vals=[];
+    for(const b of grp){
+      const bcx=b.bbox.x+b.bbox.w/2;
+      let cat='';
+      let best=null, bestd=1e9;
+      for(const l of lines){ if(l.used) continue; if(l.baseY>baseline-2 && l.baseY<baseline+b.bbox.h*0.4+34){ const d=Math.abs(l.cx-bcx); if(d<Math.max(b.bbox.w, 26) && d<bestd){bestd=d;best=l;} } }
+      if(best){ cat=best.text.trim(); best.used=true; }
+      cats.push(cat);
+      vals.push(scale ? Math.round((scale(b.bbox.y)-scale(baseline))*100)/100 : Math.round((baseline-b.bbox.y)*100)/100);
+      b.used=true;
+    }
+    if(scale) axisLabels.forEach(a=>a.line.used=true);
+    charts.push({type:'col', box:{x:minX-4, y:minTop-4, w:(maxX-minX)+8, h:(baseline-minTop)+30}, cats, vals: vals.map(v=>Math.abs(v)), name:'Wert'});
+  }
+  // line chart: long left→right open polyline
+  for(const p of prims){
+    if(p.used || p.kind!=='path' || p.fill) continue;
+    const pts=p.segs.filter(s=>s[0]==='M'||s[0]==='L').map(s=>s[1]);
+    if(pts.length<4) continue;
+    let mono=true; for(let i=1;i<pts.length;i++) if(pts[i][0]<=pts[i-1][0]-0.5){mono=false;break;}
+    if(!mono) continue;
+    const minX=Math.min(...pts.map(q=>q[0])), maxX=Math.max(...pts.map(q=>q[0]));
+    const minY=Math.min(...pts.map(q=>q[1])), maxY=Math.max(...pts.map(q=>q[1]));
+    if(maxX-minX < vp.width*0.18) continue;
+    const axisLabels=[];
+    for(const l of lines){ if(l.used) continue; const v=pdfNumVal(l.text); if(v==null) continue; if(l.cx<minX && l.baseY>minY-20 && l.baseY<maxY+20) axisLabels.push({y:l.baseY, v, line:l}); }
+    const scale=pdfAxisScale(axisLabels);
+    const vals=pts.map(q=>scale?Math.round(scale(q[1])*100)/100:Math.round((maxY-q[1])*100)/100);
+    const cats=pts.map((_,i)=>String(i+1));
+    p.used=true; if(scale) axisLabels.forEach(a=>a.line.used=true);
+    charts.push({type:'line', box:{x:minX-4,y:minY-6,w:(maxX-minX)+8,h:(maxY-minY)+30}, cats, vals, name:'Reihe'});
+  }
+  return charts;
+}
+
+// ── table detection (ruling-line grid) ──────────────────────
+function _cluster(vals, tol){
+  const s=vals.slice().sort((a,b)=>a-b); const out=[];
+  for(const v of s){ if(!out.length || v-out[out.length-1] > tol) out.push(v); else out[out.length-1]=(out[out.length-1]+v)/2; }
+  return out;
+}
+function detectTables(prims, lines, vp){
+  const hSeg=[], vSeg=[];
+  for(const p of prims){
+    if(p.used) continue;
+    if(p.isLine && p.horiz){ hSeg.push({y:p.bbox.y+p.bbox.h/2, x1:p.bbox.x, x2:p.bbox.x+p.bbox.w, p}); }
+    else if(p.isLine && p.vert){ vSeg.push({x:p.bbox.x+p.bbox.w/2, y1:p.bbox.y, y2:p.bbox.y+p.bbox.h, p}); }
+    else if(p.kind==='rect' && p.stroke && !p.fill){            // bordered cell/box rectangles
+      hSeg.push({y:p.bbox.y, x1:p.bbox.x, x2:p.bbox.x+p.bbox.w, p}); hSeg.push({y:p.bbox.y+p.bbox.h, x1:p.bbox.x, x2:p.bbox.x+p.bbox.w, p});
+      vSeg.push({x:p.bbox.x, y1:p.bbox.y, y2:p.bbox.y+p.bbox.h, p}); vSeg.push({x:p.bbox.x+p.bbox.w, y1:p.bbox.y, y2:p.bbox.y+p.bbox.h, p});
+    }
+  }
+  if(hSeg.length<3 || vSeg.length<3) return [];
+  const ys=_cluster(hSeg.map(s=>s.y), 3.5), xs=_cluster(vSeg.map(s=>s.x), 3.5);
+  if(ys.length<3 || xs.length<3) return [];
+  const x0=xs[0], x1=xs[xs.length-1], y0=ys[0], y1=ys[ys.length-1];
+  if(x1-x0<30 || y1-y0<20) return [];
+  const nRows=ys.length-1, nCols=xs.length-1;
+  const rows=[]; let filled=0, total=nRows*nCols; const claimed=[];
+  for(let r=0;r<nRows;r++){
+    const cells=[];
+    for(let c=0;c<nCols;c++){
+      const cx0=xs[c],cx1=xs[c+1],cy0=ys[r],cy1=ys[r+1];
+      let txt=[], fs=0;
+      for(const l of lines){ if(l.used) continue; if(l.cx>=cx0-2&&l.cx<=cx1+2&&l.baseY>=cy0-2&&l.baseY<=cy1+4){ txt.push(l); } }
+      txt.sort((a,b)=>a.baseY-b.baseY||a.x-b.x);
+      const text=txt.map(t=>t.text.trim()).join(' ').trim();
+      if(text){ filled++; fs=Math.max(...txt.map(t=>t.fs)); claimed.push(...txt); }
+      cells.push({w:cx1-cx0, text, sz:Math.max(700,Math.round((fs||10)*100))});
+    }
+    rows.push({h:ys[r+1]-ys[r], cells});
+  }
+  if(filled < Math.max(4, total*0.35)) return [];             // confidence gate (mark used only after it passes)
+  claimed.forEach(t=>t.used=true);
+  hSeg.forEach(s=>s.p.used=true); vSeg.forEach(s=>s.p.used=true);
+  const cols=[]; for(let c=0;c<nCols;c++) cols.push(xs[c+1]-xs[c]);
+  return [{x:x0, y:y0, w:x1-x0, h:y1-y0, cols, rows}];
+}
+
+// ── OOXML emit helpers ──────────────────────────────────────
+function pdfTextBoxXml(l, id, EX, EY, EL){
+  const x=EX(l.x), y=EY(l.top), cx=Math.max(EL(l.w)+18000, 91440), cy=Math.max(EL(l.h), 91440);
+  const sz=Math.max(400, Math.round(l.fs*100));
+  const runs=l.runs.map(r=>`<a:r><a:rPr lang="de-DE" sz="${sz}" dirty="0"/><a:t>${xmlEsc(r.str)}</a:t></a:r>`).join('');
+  return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="Text ${id}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>`+
+    `<p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>`+
+    `<p:txBody><a:bodyPr wrap="none" lIns="0" tIns="0" rIns="0" bIns="0" anchor="t"><a:spAutoFit/></a:bodyPr><a:lstStyle/><a:p><a:pPr marL="0" indent="0"/>${runs||'<a:endParaRPr/>'}</a:p></p:txBody></p:sp>`;
+}
+function pdfVectorXml(p, id, EX, EY, EL){
+  const bb=p.bbox, x=EX(bb.x), y=EY(bb.y), cx=Math.max(EL(bb.w),1), cy=Math.max(EL(bb.h),1);
+  const fillXml = p.fill ? `<a:solidFill><a:srgbClr val="${p.fill}"/></a:solidFill>` : '<a:noFill/>';
+  const lnXml   = p.stroke ? `<a:ln w="${Math.max(635,EL(p.lw))}"><a:solidFill><a:srgbClr val="${p.stroke}"/></a:solidFill></a:ln>` : '<a:ln><a:noFill/></a:ln>';
+  if(p.kind==='rect'){
+    return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="Shape ${id}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>`+
+      `<p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>${fillXml}${lnXml}</p:spPr>`+
+      `<p:txBody><a:bodyPr/><a:lstStyle/><a:p/></p:txBody></p:sp>`;
+  }
+  const LX=v=>EL(v-bb.x), LY=v=>EL(v-bb.y);
+  const d=p.segs.map(s=>{
+    if(s[0]==='M') return `<a:moveTo><a:pt x="${LX(s[1][0])}" y="${LY(s[1][1])}"/></a:moveTo>`;
+    if(s[0]==='L') return `<a:lnTo><a:pt x="${LX(s[1][0])}" y="${LY(s[1][1])}"/></a:lnTo>`;
+    if(s[0]==='C') return `<a:cubicBezTo>${s.slice(1).map(pt=>`<a:pt x="${LX(pt[0])}" y="${LY(pt[1])}"/>`).join('')}</a:cubicBezTo>`;
+    if(s[0]==='Z') return '<a:close/>';
+    return '';
+  }).join('');
+  return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="Shape ${id}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>`+
+    `<p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>`+
+    `<a:custGeom><a:avLst/><a:gdLst/><a:rect l="0" t="0" r="0" b="0"/><a:pathLst><a:path w="${cx}" h="${cy}">${d}</a:path></a:pathLst></a:custGeom>`+
+    `${fillXml}${lnXml}</p:spPr><p:txBody><a:bodyPr/><a:lstStyle/><a:p/></p:txBody></p:sp>`;
+}
+function pdfPicXml(bb, id, rid, EX, EY, EL){
+  const x=EX(bb.x), y=EY(bb.y), cx=Math.max(EL(bb.w),1), cy=Math.max(EL(bb.h),1);
+  return `<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="Bild ${id}"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>`+
+    `<p:blipFill><a:blip r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>`+
+    `<p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
+}
+function pdfTableXml(t, id, EX, EY, EL){
+  const x=EX(t.x), y=EY(t.y), cx=Math.max(EL(t.w),1), cy=Math.max(EL(t.h),1);
+  const grid=t.cols.map(w=>`<a:gridCol w="${Math.max(1,EL(w))}"/>`).join('');
+  const border=`<a:lnL w="6350"><a:solidFill><a:srgbClr val="BFBFBF"/></a:solidFill></a:lnL><a:lnR w="6350"><a:solidFill><a:srgbClr val="BFBFBF"/></a:solidFill></a:lnR><a:lnT w="6350"><a:solidFill><a:srgbClr val="BFBFBF"/></a:solidFill></a:lnT><a:lnB w="6350"><a:solidFill><a:srgbClr val="BFBFBF"/></a:solidFill></a:lnB>`;
+  const rows=t.rows.map(r=>`<a:tr h="${Math.max(1,EL(r.h))}">${r.cells.map(c=>`<a:tc><a:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang="de-DE" sz="${c.sz||1000}"/><a:t>${xmlEsc(c.text||'')}</a:t></a:r></a:p></a:txBody><a:tcPr marL="45720" marR="45720" marT="22860" marB="22860" anchor="ctr">${border}</a:tcPr></a:tc>`).join('')}</a:tr>`).join('');
+  return `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="${id}" name="Tabelle ${id}"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>`+
+    `<p:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></p:xfrm>`+
+    `<a:graphic><a:graphicData uri="${TABLE_URI}"><a:tbl><a:tblPr firstRow="0" bandRow="0"/><a:tblGrid>${grid}</a:tblGrid>${rows}</a:tbl></a:graphicData></a:graphic></p:graphicFrame>`;
+}
+function pdfChartFrameXml(c, id, rid, EX, EY, EL){
+  const x=EX(c.box.x), y=EY(c.box.y), cx=Math.max(EL(c.box.w),1), cy=Math.max(EL(c.box.h),1);
+  return `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="${id}" name="Diagramm ${id}"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>`+
+    `<p:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></p:xfrm>`+
+    `<a:graphic><a:graphicData uri="${CHART_URI}"><c:chart xmlns:c="${CHART_URI}" xmlns:r="${PDF_REL_NS}" r:id="${rid}"/></a:graphicData></a:graphic></p:graphicFrame>`;
+}
+function pdfChartPartXml(c){
+  const n=Math.max(c.cats.length, c.vals.length);
+  const strPts=c.cats.map((v,i)=>`<c:pt idx="${i}"><c:v>${xmlEsc(String(v))}</c:v></c:pt>`).join('');
+  const numPts=c.vals.map((v,i)=>`<c:pt idx="${i}"><c:v>${v}</c:v></c:pt>`).join('');
+  const marker = c.type==='line' ? '<c:marker><c:symbol val="circle"/></c:marker>' : '';
+  const ser=`<c:ser><c:idx val="0"/><c:order val="0"/><c:tx><c:strRef><c:f>Sheet1!$B$1</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>${xmlEsc(c.name||'Serie 1')}</c:v></c:pt></c:strCache></c:strRef></c:tx>${marker}<c:cat><c:strRef><c:f>Sheet1!$A$2:$A$${n+1}</c:f><c:strCache><c:ptCount val="${n}"/>${strPts}</c:strCache></c:strRef></c:cat><c:val><c:numRef><c:f>Sheet1!$B$2:$B$${n+1}</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="${n}"/>${numPts}</c:numCache></c:numRef></c:val></c:ser>`;
+  let plot;
+  if(c.type==='line') plot=`<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>${ser}<c:marker val="1"/><c:axId val="111"/><c:axId val="222"/></c:lineChart>`;
+  else plot=`<c:barChart><c:barDir val="${c.type==='bar'?'bar':'col'}"/><c:grouping val="clustered"/><c:varyColors val="0"/>${ser}<c:axId val="111"/><c:axId val="222"/></c:barChart>`;
+  const catAx=`<c:catAx><c:axId val="111"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="b"/><c:crossAx val="222"/></c:catAx>`;
+  const valAx=`<c:valAx><c:axId val="222"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="l"/><c:crossAx val="111"/></c:valAx>`;
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<c:chartSpace xmlns:c="${CHART_URI}" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="${PDF_REL_NS}"><c:chart><c:plotArea><c:layout/>${plot}${catAx}${valAx}</c:plotArea><c:plotVisOnly val="1"/></c:chart></c:chartSpace>`;
+}
+function pdfSlideShell(shapes){
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><p:cSld><p:spTree>
+<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+<p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>
+${shapes}
+</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>`;
+}
+
+// ── per-page build (returns slide xml + parts) ──────────────
+async function buildPdfSlide(page, idx, deck){
+  const U=_pdfjs.Util, OPS=_pdfjs.OPS;
+  const vp=page.getViewport({scale:1});
+  const pageScale=Math.min(deck.wPt/vp.width, deck.hPt/vp.height);
+  const offX=(deck.wPt-vp.width*pageScale)/2, offY=(deck.hPt-vp.height*pageScale)/2;
+  const EX=px=>Math.round((px*pageScale+offX)*PDF_EMU);
+  const EY=py=>Math.round((py*pageScale+offY)*PDF_EMU);
+  const EL=d=>Math.round(d*pageScale*PDF_EMU);
+  let nid=2; const sid=()=>nid++;
+  let rid=2; const newRid=()=>'rId'+(rid++);
+  const media={}, chartsOut={}, rels=[];
+  let shapes='', fallback=false;
+  try{
+    const lines=await pdfExtractText(page, vp, U);
+    const {prims, images}=await pdfExtractOps(page, vp, U, OPS);
+    // drop full-page background rectangles (whole-page fills)
+    for(const p of prims){ if(p.kind==='rect' && p.bbox.w>vp.width*0.93 && p.bbox.h>vp.height*0.93 && !p.stroke) p.used=true; }
+    const charts=detectCharts(prims, lines, vp);
+    const tables=detectTables(prims, lines, vp);
+    for(const c of charts){
+      const cn=deck.chartSeq++; const ckey=`ppt/charts/chart${cn}.xml`;
+      chartsOut[ckey]=pdfChartPartXml(c);
+      const r=newRid(); rels.push(`<Relationship Id="${r}" Type="${PDF_CHART_REL}" Target="../charts/chart${cn}.xml"/>`);
+      shapes+=pdfChartFrameXml(c, sid(), r, EX, EY, EL);
+    }
+    for(const t of tables) shapes+=pdfTableXml(t, sid(), EX, EY, EL);
+    for(const im of images){
+      if(im.used) continue;
+      try{
+        const png=await pdfImagePng(page, im);
+        if(png && png.length){ const mn=deck.mediaSeq++; const mkey=`ppt/media/pdfimg${mn}.png`; media[mkey]=png; const r=newRid(); rels.push(`<Relationship Id="${r}" Type="${PDF_IMAGE_REL}" Target="../media/pdfimg${mn}.png"/>`); shapes+=pdfPicXml(im.bbox, sid(), r, EX, EY, EL); }
+      }catch(_){}
+    }
+    for(const p of prims){ if(p.used) continue; if(p.bbox.w<0.4 && p.bbox.h<0.4) continue; shapes+=pdfVectorXml(p, sid(), EX, EY, EL); }
+    for(const l of lines){ if(l.used || !l.runs.length) continue; shapes+=pdfTextBoxXml(l, sid(), EX, EY, EL); }
+  }catch(e){ console.warn('PDF-Seite '+idx+' Rekonstruktion fehlgeschlagen:', e); fallback=true; }
+
+  if(fallback || !shapes.trim()){
+    const png=await pdfPagePng(page, 2);
+    const mn=deck.mediaSeq++; const mkey=`ppt/media/pdfimg${mn}.png`; media[mkey]=png;
+    const r=newRid(); rels.push(`<Relationship Id="${r}" Type="${PDF_IMAGE_REL}" Target="../media/pdfimg${mn}.png"/>`);
+    shapes=pdfPicXml({x:0,y:0,w:vp.width,h:vp.height}, sid(), r, EX, EY, EL);
+  }
+  const relsXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${PDF_LAYOUT_REL}" Target="../slideLayouts/slideLayout1.xml"/>${rels.join('')}</Relationships>`;
+  return {xml:pdfSlideShell(shapes), relsXml, media, charts:chartsOut};
+}
+
+// ── PDF → OOXML package (mirrors generatePptx part-wiring) ──
+async function pdfToPackage(pdf){
+  const out=BLANK_DECK();
+  const p1=await pdf.getPage(1); const vp1=p1.getViewport({scale:1});
+  const MAXPT=4032;                                          // PowerPoint hard limit (56 in)
+  const k=Math.min(1, MAXPT/Math.max(vp1.width, vp1.height));
+  const wPt=vp1.width*k, hPt=vp1.height*k;
+  const cx=Math.round(wPt*PDF_EMU), cy=Math.round(hPt*PDF_EMU);
+  const deck={wPt, hPt, chartSeq:1, mediaSeq:1};
+  let pres=DEC.decode(out['ppt/presentation.xml']).replace('<p:sldSz cx="12192000" cy="6858000" type="screen16x9"/>', `<p:sldSz cx="${cx}" cy="${cy}" type="custom"/>`);
+  let ct=DEC.decode(out['[Content_Types].xml']);
+  let presRels=DEC.decode(out['ppt/_rels/presentation.xml.rels']);
+  let sldIds=''; let sldGuid=256; let prid=2;
+  const n=pdf.numPages;
+  for(let i=1;i<=n;i++){
+    setProgress(28+Math.round(50*i/n), `Seite ${i}/${n} → editierbare Folie…`);
+    const page = i===1 ? p1 : await pdf.getPage(i);
+    const sl=await buildPdfSlide(page, i, deck);
+    const skey=`ppt/slides/slide${i}.xml`, srkey=`ppt/slides/_rels/slide${i}.xml.rels`;
+    out[skey]=ENC2.encode(sl.xml);
+    out[srkey]=ENC2.encode(sl.relsXml);
+    for(const [key,val] of Object.entries(sl.media)) out[key]=val;
+    for(const [key,val] of Object.entries(sl.charts)){ out[key]=ENC2.encode(val); ct=ct.replace('</Types>', `<Override PartName="/${key}" ContentType="${PDF_CT_CHART}"/></Types>`); }
+    ct=ct.replace('</Types>', `<Override PartName="/${skey}" ContentType="${PDF_CT_SLIDE}"/></Types>`);
+    const rId='rId'+(prid++);
+    presRels=presRels.replace('</Relationships>', `<Relationship Id="${rId}" Type="${PDF_SLIDE_REL}" Target="slides/slide${i}.xml"/></Relationships>`);
+    sldIds+=`<p:sldId id="${sldGuid++}" r:id="${rId}"/>`;
+    try{ page.cleanup && page.cleanup(); }catch(_){}
+  }
+  pres=pres.replace('<p:sldIdLst/>', `<p:sldIdLst>${sldIds}</p:sldIdLst>`);
+  out['ppt/presentation.xml']=ENC2.encode(pres);
+  out['ppt/_rels/presentation.xml.rels']=ENC2.encode(presRels);
+  out['[Content_Types].xml']=ENC2.encode(ct);
+  return out;
+}
+
+// ── minimal-but-valid base deck (mirrors slidewriting/bootstrap.py) ──
+function BLANK_DECK(){
+  const A='http://schemas.openxmlformats.org/drawingml/2006/main';
+  const P='http://schemas.openxmlformats.org/presentationml/2006/main';
+  const R='http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+  const RELS='http://schemas.openxmlformats.org/package/2006/relationships';
+  const e={};
+  e['[Content_Types].xml']=
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Default Extension="png" ContentType="image/png"/>
+<Default Extension="jpeg" ContentType="image/jpeg"/>
+<Default Extension="jpg" ContentType="image/jpeg"/>
+<Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
+<Override PartName="/ppt/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
+<Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>
+<Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>
+</Types>`;
+  e['_rels/.rels']=
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="${RELS}"><Relationship Id="rId1" Type="${PDF_OFFICE_REL}" Target="ppt/presentation.xml"/></Relationships>`;
+  e['ppt/presentation.xml']=
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentation xmlns:a="${A}" xmlns:r="${R}" xmlns:p="${P}"><p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst><p:sldIdLst/><p:sldSz cx="12192000" cy="6858000" type="screen16x9"/><p:notesSz cx="6858000" cy="9144000"/></p:presentation>`;
+  e['ppt/_rels/presentation.xml.rels']=
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="${RELS}"><Relationship Id="rId1" Type="${PDF_MASTER_REL}" Target="slideMasters/slideMaster1.xml"/></Relationships>`;
+  const clr=(t,v)=>`<a:${t}><a:srgbClr val="${v}"/></a:${t}>`;
+  e['ppt/theme/theme1.xml']=
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<a:theme xmlns:a="${A}" name="ROOTS"><a:themeElements>
+<a:clrScheme name="ROOTS"><a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1><a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1>${clr('dk2','0F172A')}${clr('lt2','F8FAFC')}${clr('accent1','206EFB')}${clr('accent2','ED8936')}${clr('accent3','48BB78')}${clr('accent4','9F7AEA')}${clr('accent5','F56565')}${clr('accent6','38B2AC')}${clr('hlink','206EFB')}${clr('folHlink','9F7AEA')}</a:clrScheme>
+<a:fontScheme name="ROOTS"><a:majorFont><a:latin typeface="Calibri Light"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont><a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont></a:fontScheme>
+<a:fmtScheme name="ROOTS">
+<a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst>
+<a:lnStyleLst><a:ln w="6350"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln><a:ln w="12700"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln><a:ln w="19050"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst>
+<a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst>
+<a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst>
+</a:fmtScheme></a:themeElements></a:theme>`;
+  const defRPr=`<a:defRPr sz="1800"><a:solidFill><a:schemeClr val="tx1"/></a:solidFill><a:latin typeface="+mn-lt"/></a:defRPr>`;
+  e['ppt/slideMasters/slideMaster1.xml']=
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sldMaster xmlns:a="${A}" xmlns:r="${R}" xmlns:p="${P}"><p:cSld><p:bg><p:bgPr><a:solidFill><a:schemeClr val="bg1"/></a:solidFill><a:effectLst/></p:bgPr></p:bg><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr></p:spTree></p:cSld><p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/><p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst><p:txStyles><p:titleStyle><a:lvl1pPr>${defRPr}</a:lvl1pPr></p:titleStyle><p:bodyStyle><a:lvl1pPr>${defRPr}</a:lvl1pPr></p:bodyStyle><p:otherStyle><a:lvl1pPr>${defRPr}</a:lvl1pPr></p:otherStyle></p:txStyles></p:sldMaster>`;
+  e['ppt/slideMasters/_rels/slideMaster1.xml.rels']=
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="${RELS}"><Relationship Id="rId1" Type="${PDF_LAYOUT_REL}" Target="../slideLayouts/slideLayout1.xml"/><Relationship Id="rId2" Type="${PDF_THEME_REL}" Target="../theme/theme1.xml"/></Relationships>`;
+  e['ppt/slideLayouts/slideLayout1.xml']=
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sldLayout xmlns:a="${A}" xmlns:r="${R}" xmlns:p="${P}" type="blank" preserve="1"><p:cSld name="Leer"><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr></p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>`;
+  e['ppt/slideLayouts/_rels/slideLayout1.xml.rels']=
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="${RELS}"><Relationship Id="rId1" Type="${PDF_MASTER_REL}" Target="../slideMasters/slideMaster1.xml"/></Relationships>`;
+  const enc={}; for(const [k,v] of Object.entries(e)) enc[k]=ENC2.encode(v);
+  return enc;
+}
+
+function downloadRebuilt(){
+  if(!S.entries){ toast('Keine Datei geladen','error'); return; }
+  try{
+    const bytes=buildZip(S.entries);
+    const blob=new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.presentationml.presentation'});
+    const url=URL.createObjectURL(blob), a=document.createElement('a');
+    a.href=url; a.download=(S.filename||'praesentation').replace(/\.(pdf|pptx)$/i,'')+'.pptx';
+    a.click(); URL.revokeObjectURL(url);
+    toast('PowerPoint heruntergeladen','success');
+  }catch(e){ toast('Export-Fehler: '+e.message,'error'); }
+}
+
+async function handlePdf(file){
+  S.file=file; S.filename=file.name; S.messages=[]; S.draftSpec=null; S.pickerSelected=new Set(); S.sourceKind='pdf';
+  document.getElementById('upload-progress').style.display='block';
+  document.getElementById('browse-btn').disabled=true;
+  setProgress(8,'Lade PDF-Engine…');
+  try{
+    const pdfjs=await loadPdfEngine();
+    setProgress(18,'Lese PDF…');
+    const buf=await file.arrayBuffer();
+    const pdf=await pdfjs.getDocument({data:new Uint8Array(buf)}).promise;
+    setProgress(28,'Analysiere Seiten & baue Folien…');
+    S.entries=await pdfToPackage(pdf);
+    setProgress(82,'Analysiere Design & Elemente…');
+    S.analysis=await analyzePptx(S.entries);
+    setProgress(95,'Fertig!');
+    await new Promise(r=>setTimeout(r,200));
+    document.getElementById('upload-phase').style.display='none';
+    document.getElementById('tool-phase').hidden=false;
+    document.getElementById('filename-chip').textContent=file.name;
+    const dl=document.getElementById('download-rebuilt-btn'); if(dl) dl.hidden=false;
+    S.activeSlide=0;
+    renderRail(); renderAnalyse(); await renderKeyStatus();
+    renderMainSlidePreview(0);
+    document.getElementById('chat-messages').innerHTML=
+      `<div class="empty-state" id="chat-empty">
+        <i class="fa-solid fa-wand-magic-sparkles"></i>
+        <p>PDF wurde in editierbare Folien umgewandelt.<br>Lade sie als .pptx herunter oder ergänze per KI neue Folien.</p>
+      </div>`;
+    document.getElementById('spec-panel').style.display='none';
+  }catch(err){
+    console.error(err);
+    toast('PDF-Fehler: '+err.message,'error');
+    document.getElementById('upload-progress').style.display='none';
+    document.getElementById('browse-btn').disabled=false;
+  }finally{ setProgress(0,''); }
+}
+
 // ── HANDLERS ────────────────────────────────────────────────
 async function handleFile(file) {
-  if (!file?.name.toLowerCase().endsWith('.pptx')){toast('Bitte eine .pptx-Datei hochladen','error');return;}
-  S.file=file; S.filename=file.name; S.messages=[]; S.draftSpec=null; S.pickerSelected=new Set();
+  const nm=(file?.name||'').toLowerCase();
+  if (nm.endsWith('.pdf')) return handlePdf(file);
+  if (!nm.endsWith('.pptx')){toast('Bitte eine .pptx- oder .pdf-Datei hochladen','error');return;}
+  S.file=file; S.filename=file.name; S.messages=[]; S.draftSpec=null; S.pickerSelected=new Set(); S.sourceKind='pptx';
+  { const _dl=document.getElementById('download-rebuilt-btn'); if(_dl)_dl.hidden=true; }   // rebuild-download is PDF-only
   document.getElementById('upload-progress').style.display='block';
   document.getElementById('browse-btn').disabled=true;
   setProgress(10,'Lese Datei…');
@@ -3343,7 +3911,8 @@ document.addEventListener('DOMContentLoaded',()=>{
     document.getElementById('upload-progress').style.display='none';
     document.getElementById('browse-btn').disabled=false;
     fileInput.value='';
-    Object.assign(S,{file:null,analysis:null,entries:null,messages:[],draftSpec:null,pickerSelected:new Set()});
+    const dl=document.getElementById('download-rebuilt-btn'); if(dl) dl.hidden=true;
+    Object.assign(S,{file:null,analysis:null,entries:null,messages:[],draftSpec:null,pickerSelected:new Set(),sourceKind:null});
   });
 
   document.querySelectorAll('.tab-btn').forEach(btn=>{
@@ -3374,6 +3943,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     document.getElementById('chat-input').focus();
   });
   document.getElementById('generate-btn').addEventListener('click',generateAndDownload);
+  document.getElementById('download-rebuilt-btn').addEventListener('click',downloadRebuilt);
 
   // Admin modal
   document.getElementById('settings-btn').addEventListener('click', openAdminModal);

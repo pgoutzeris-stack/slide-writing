@@ -427,6 +427,14 @@ body{font-family:'Circular Std',system-ui,sans-serif;color:var(--ink);background
 </div>
 
 <script>
+try {
+  if (window.self !== window.top && new URLSearchParams(window.location.search).get('authBroker') === 'v1') {
+    window.ROOTS_TOKENLESS_EMBED = true;
+  }
+} catch (_) {}
+</script>
+<script src="https://pgoutzeris-stack.github.io/ROOTS_Intranet/roots-user-bridge.js?v=20260722-slide"></script>
+<script>
 'use strict';
 
 // ── Config ──────────────────────────────────────────────────
@@ -434,7 +442,14 @@ const SB_URL  = 'https://csmguwcvzreefluhahyu.supabase.co';
 const SB_FUNC = SB_URL + '/functions/v1/slide-writing-ai';
 const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNzbWd1d2N2enJlZWZsdWhhaHl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NjM0ODcsImV4cCI6MjA5MjUzOTQ4N30.Fiafx7XBaQZXUX3bKQIBH7znBHx3B51yL-bftOHsL4Q';
 
-const sbClient = window.supabase.createClient(SB_URL, SB_KEY);
+const SLIDE_TOKENLESS = window.RootsUserBridge?.TOKENLESS_EMBED === true;
+const sbClient = SLIDE_TOKENLESS ? null : window.supabase.createClient(SB_URL, SB_KEY);
+let slideBrokerContext = null;
+
+async function slideBroker(payload) {
+  if (!SLIDE_TOKENLESS) throw new Error('Broker ist nicht aktiv');
+  return window.RootsUserBridge.request('slide-writing', payload);
+}
 
 const NSMAP = {
   p:   'http://schemas.openxmlformats.org/presentationml/2006/main',
@@ -2805,9 +2820,12 @@ async function callAI(message) {
     },
     draft_spec: S.draftSpec,
   };
+  if (SLIDE_TOKENLESS) return slideBroker({ action:'chat', ...payload });
+  const { data: { session } } = await sbClient.auth.getSession();
+  if (!session?.access_token) throw new Error('Bitte zuerst über die Einstellungen mit deinem ROOTS-Konto anmelden.');
   const resp = await fetch(SB_FUNC, {
     method:'POST',
-    headers:{'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY},
+    headers:{'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+session.access_token},
     body:JSON.stringify(payload),
   });
   if (!resp.ok) { const e=await resp.json().catch(()=>({error:'HTTP '+resp.status})); throw new Error(e.error||'AI-Fehler'); }
@@ -2831,7 +2849,18 @@ let _adminSession = null; // holds supabase session after login
 async function renderKeyStatus() {
   const chip = document.getElementById('key-status-chip');
   if (!chip) return;
-  // Show set if there's a stored session (proxy for "key was saved before")
+  if (SLIDE_TOKENLESS) {
+    try {
+      const result = await slideBroker({ action:'settings_status' });
+      chip.innerHTML = result?.configured
+        ? `<span class="key-status set"><i class="fa-solid fa-circle-check"></i> API-Key sicher konfiguriert</span>`
+        : `<span class="key-status unset"><i class="fa-solid fa-circle-xmark"></i> Kein API-Key</span>`;
+    } catch (_) {
+      chip.innerHTML=`<span class="key-status unset"><i class="fa-solid fa-circle-xmark"></i> Nicht angemeldet</span>`;
+    }
+    return;
+  }
+  // Standalone: ROOTS session is required for AI calls and key management.
   const { data: { session } } = await sbClient.auth.getSession();
   _adminSession = session;
   if (session) {
@@ -2842,6 +2871,21 @@ async function renderKeyStatus() {
 }
 
 async function openAdminModal() {
+  if (SLIDE_TOKENLESS) {
+    try {
+      slideBrokerContext ||= await window.RootsUserBridge.request('user-context');
+      _adminSession = { access_token:'broker', user: slideBrokerContext.user };
+      if (slideBrokerContext?.profile?.app_role !== 'admin') throw new Error('Nur Admins dürfen den API-Schlüssel verwalten.');
+      showModalKeyStep(slideBrokerContext.user?.email || 'ROOTS Admin');
+    } catch (error) {
+      showModalLoginStep();
+      const err = document.getElementById('modal-login-error');
+      err.textContent = error.message || 'Nicht berechtigt';
+      err.style.display = 'block';
+    }
+    document.getElementById('admin-modal').classList.add('open');
+    return;
+  }
   // Restore session state
   const { data: { session } } = await sbClient.auth.getSession();
   _adminSession = session;
@@ -2874,6 +2918,7 @@ function showModalKeyStep(email) {
 }
 
 async function handleModalLogin() {
+  if (SLIDE_TOKENLESS) return;
   const email    = document.getElementById('modal-email').value.trim();
   const password = document.getElementById('modal-password').value;
   const errEl    = document.getElementById('modal-login-error');
@@ -2895,6 +2940,13 @@ async function handleModalSave() {
   if (!_adminSession?.access_token) { errEl.textContent='Sitzung abgelaufen — bitte erneut anmelden.'; errEl.style.display='block'; showModalLoginStep(); return; }
   btn.disabled=true; btn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Speichert…';
   try {
+    if (SLIDE_TOKENLESS) {
+      await slideBroker({ action:'save_api_key', api_key_value:key });
+      closeAdminModal();
+      toast('API-Schlüssel sicher in Supabase gespeichert', 'success');
+      await renderKeyStatus();
+      return;
+    }
     const resp = await fetch(SB_FUNC, {
       method:'POST',
       headers:{
@@ -2918,6 +2970,7 @@ async function handleModalSave() {
 }
 
 async function handleModalLogout() {
+  if (SLIDE_TOKENLESS) { closeAdminModal(); return; }
   await sbClient.auth.signOut();
   _adminSession = null;
   showModalLoginStep();

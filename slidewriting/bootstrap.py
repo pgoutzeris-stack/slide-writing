@@ -1,15 +1,15 @@
 """Bootstrap a complete, valid 16:9 presentation template from scratch.
 
 :func:`create_default_template` assembles every part a minimal-but-complete
-``.pptx`` needs — content types, package rels, docProps (core + app),
+``.pptx`` needs - content types, package rels, docProps (core + app),
 ``presentation.xml`` (+ rels), presProps, viewProps, tableStyles, a full
 theme (color/font/format scheme), one slide master (color map, placeholders,
-text styles), and the six standard layouts from :data:`DEFAULT_LAYOUTS` —
+text styles), and the six standard layouts from :data:`DEFAULT_LAYOUTS` -
 with **no slides**. The resulting :class:`~slidewriting.opc.Package` opens
 cleanly in PowerPoint and serves as the default design for decks created
 without an external template.
 
-Design: clean consulting look — title top-left with a thin accent rule
+Design: clean consulting look - title top-left with a thin accent rule
 underneath, generous content area, small date/footer/slide-number
 placeholders along the bottom edge.
 """
@@ -99,9 +99,9 @@ _TWO_RIGHT_BOX = Box(_BODY_BOX.x + _TWO_W + _TWO_GAP, _BODY_BOX.y, _TWO_W, _BODY
 #: Master body style: (marL, bullet char, size in hundredths pt) for lvl1-5.
 _BODY_LEVELS: tuple[tuple[int, str, int], ...] = (
     (0, "•", 1800),
-    (342900, "–", 1600),
+    (342900, "-", 1600),
     (685800, "•", 1400),
-    (1028700, "–", 1200),
+    (1028700, "-", 1200),
     (1371600, "•", 1200),
 )
 

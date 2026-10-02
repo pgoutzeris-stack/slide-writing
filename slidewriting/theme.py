@@ -6,7 +6,7 @@ color names against a theme plus a master color map (:class:`ColorResolver`),
 and provides element factories for DrawingML color/fill markup
 (:func:`srgb_fill`, :func:`scheme_fill`, :func:`color_el`, :func:`fill_for`).
 
-Color values in the model are always ``"RRGGBB"`` strings — uppercase hex
+Color values in the model are always ``"RRGGBB"`` strings - uppercase hex
 without a leading ``#``. Generated elements use ``<a:schemeClr>`` for theme
 slots and logical names (theme-true output) and ``<a:srgbClr>`` for literal
 hex colors.
@@ -164,7 +164,7 @@ def parse_theme(blob: bytes) -> Theme:
     """Parse a theme part (``theme1.xml``) into a :class:`Theme`.
 
     Reads ``a:themeElements/a:clrScheme`` (each slot child holding
-    ``a:srgbClr@val`` or ``a:sysClr`` — ``lastClr`` preferred, with the
+    ``a:srgbClr@val`` or ``a:sysClr`` - ``lastClr`` preferred, with the
     fallbacks ``windowText`` → ``000000`` and ``window`` → ``FFFFFF``) and
     ``a:fontScheme`` (``a:majorFont``/``a:minorFont`` latin typefaces).
     The parsed XML root is kept on :attr:`Theme.element`.
@@ -199,12 +199,12 @@ class ColorResolver:
 
     Accepted names, in resolution order:
 
-    1. theme slots (``"dk1"`` … ``"folHlink"``) — read directly from the
+    1. theme slots (``"dk1"`` … ``"folHlink"``) - read directly from the
        theme's :class:`ColorScheme`;
     2. logical names (``"tx1"``, ``"bg1"``, ``"tx2"``, ``"bg2"``, accents,
-       ``"hlink"``/``"folHlink"``) — mapped to a theme slot through the
+       ``"hlink"``/``"folHlink"``) - mapped to a theme slot through the
        master's ``p:clrMap`` dictionary;
-    3. literal ``"RRGGBB"`` / ``"#RRGGBB"`` hex values — normalized to
+    3. literal ``"RRGGBB"`` / ``"#RRGGBB"`` hex values - normalized to
        uppercase six-digit hex.
 
     Anything else raises :class:`ParseError`.
@@ -290,7 +290,7 @@ def color_el(color: str) -> ET.Element:
 def fill_for(color: str, alpha_pct: int | None = None) -> ET.Element:
     """Return an ``<a:solidFill>`` wrapping :func:`color_el` for ``color``.
 
-    If ``alpha_pct`` is given (opacity in percent, 0–100), an
+    If ``alpha_pct`` is given (opacity in percent, 0-100), an
     ``<a:alpha val="alpha_pct * 1000"/>`` child is added inside the color
     element. Raises :class:`ParseError` for unknown colors and
     :class:`BuildError` for an out-of-range ``alpha_pct``.

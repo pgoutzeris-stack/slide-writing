@@ -5,7 +5,7 @@
   <meta name="referrer" content="no-referrer">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Slide Writing — ROOTS</title>
+<title>Slide Writing - ROOTS</title>
 <link rel="stylesheet" href="https://fonts.cdnfonts.com/css/circular-std">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/dist/umd/supabase.min.js"></script>
@@ -205,7 +205,7 @@ body{font-family:'Circular Std',system-ui,sans-serif;color:var(--ink);background
 .slide-preview-stage{width:100%;aspect-ratio:16/9;background:var(--bg-surface);border-radius:var(--radius);border:1px solid var(--line);overflow:hidden;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center}
 .slide-preview-stage svg{display:block}
 /* slide is rendered at native point-size and fitted via transform:scale (NOT
-   width:100%) — Chromium mis-wraps <foreignObject> text when the SVG is scaled
+   width:100%) - Chromium mis-wraps <foreignObject> text when the SVG is scaled
    via width/height. transform:scale composites the already-wrapped layout. */
 .slide-scale-fit{transform-origin:top left}
 .slide-preview-nav{display:flex;align-items:center;justify-content:center;gap:.75rem}
@@ -772,7 +772,7 @@ function analyzeShapeNode(node, sRels, entries, acc) {
       if (box) acc.shapeItems.push({...box, shapeType:'table'});
 
     } else {
-      // SmartArt / diagram / OLE object — recognize as a native graphic element
+      // SmartArt / diagram / OLE object - recognize as a native graphic element
       const isDiagram = uri.includes('/diagram');
       acc.shapes++;
       acc.elements.push({type:'graphic', label: isDiagram?'SmartArt':'Grafik-Objekt'});
@@ -784,7 +784,7 @@ function analyzeShapeNode(node, sRels, entries, acc) {
     acc.elements.push({type:'connector', label:'Verbinder / Linie'});
 
   } else if (ln==='grpSp') {
-    // Recurse into group — don't count the group itself as a shape
+    // Recurse into group - don't count the group itself as a shape
     for (const ch of node.children) analyzeShapeNode(ch, sRels, entries, acc);
   }
 }
@@ -902,7 +902,7 @@ function resolveFill(spPr, TC, fallback) {
 // ── DRAWINGML → SVG RENDERER ───────────────────────────────
 // ViewBox: 960 × 540. For a standard 16:9 slide (12192000 × 6858000 EMU):
 //   sx = sy = 960/12192000 ≈ 7.874e-5
-//   1 pt = 12700 EMU → 1 SVG unit  (so sz/100 pt ≈ sz/100 SVG px — correct for foreignObject)
+//   1 pt = 12700 EMU → 1 SVG unit  (so sz/100 pt ≈ sz/100 SVG px - correct for foreignObject)
 
 function svgBox(el,sx,sy){
   // Shapes/pics use a:xfrm (in spPr); a p:graphicFrame (chart/table/SmartArt) uses
@@ -1104,7 +1104,7 @@ function binToDataUrl(data, key) {
   return`data:${mime};base64,${btoa(b64)}`;
 }
 
-// Build a foreignObject HTML text block — proper rendering with CSS
+// Build a foreignObject HTML text block - proper rendering with CSS
 // Resolve +mj-lt / +mn-lt typeface references to actual font names
 function resolveTypeface(tf, TC) {
   if (!tf) return null;
@@ -1160,7 +1160,7 @@ function foText(txBody, box, TC, defaultFont, defaultTextColor, txLevels) {
   const bodyPr=txBody.getElementsByTagNameNS(NSMAP.a,'bodyPr')[0];
   const anchor=bodyPr?.getAttribute('anchor')||'t';
   const valign={t:'flex-start',ctr:'center',b:'flex-end'}[anchor]||'flex-start';
-  // Text-body insets are lIns/tIns/rIns/bIns on a:bodyPr (NOT marL/… — those are
+  // Text-body insets are lIns/tIns/rIns/bIns on a:bodyPr (NOT marL/… - those are
   // table-cell/paragraph attrs). EMU → points (1pt = 12700 EMU). PP defaults:
   // lIns/rIns = 91440 (0.1"), tIns/bIns = 45720 (0.05").
   const mL=+(bodyPr?.getAttribute('lIns')??91440)/12700;
@@ -1169,13 +1169,13 @@ function foText(txBody, box, TC, defaultFont, defaultTextColor, txLevels) {
   const mB=+(bodyPr?.getAttribute('bIns')??45720)/12700;
   const vert=bodyPr?.getAttribute('vert');
   const isVert=vert&&vert!=='horz'&&vert!=='';
-  // normAutofit: PowerPoint shrank the text to fit — apply the same scale so we
+  // normAutofit: PowerPoint shrank the text to fit - apply the same scale so we
   // don't overflow either. fontScale/lnSpcReduction are in 1/1000 percent.
   const normAF=bodyPr?.getElementsByTagNameNS(NSMAP.a,'normAutofit')[0];
   const fontScale=normAF?(+(normAF.getAttribute('fontScale')||100000)/100000):1;
   const lnSpcReduction=normAF?(+(normAF.getAttribute('lnSpcReduction')||0)/100000):0;
 
-  // lstStyle — shape-level per-level defaults (override txStyles)
+  // lstStyle - shape-level per-level defaults (override txStyles)
   const lstStyle=txBody.getElementsByTagNameNS(NSMAP.a,'lstStyle')[0];
   function lstLvlSz(lvl) {
     const lp=lstStyle?.getElementsByTagNameNS(NSMAP.a,`lvl${lvl+1}pPr`)[0];
@@ -1192,7 +1192,7 @@ function foText(txBody, box, TC, defaultFont, defaultTextColor, txLevels) {
 
   // Shrink-to-fit is applied ONLY when the XML asks for it (normAutofit fontScale,
   // handled above). For noAutofit/spAutoFit boxes we render at the true size and
-  // let text flow as PowerPoint does — auto-shrinking those would misalign text
+  // let text flow as PowerPoint does - auto-shrinking those would misalign text
   // that's intentionally laid out around overlapping graphics (e.g. a centered logo).
   const autoScale=1;
 
@@ -1253,7 +1253,7 @@ function foText(txBody, box, TC, defaultFont, defaultTextColor, txLevels) {
       let color=sf?resolveClr(sf,TC)||null:null;
       if(!color)color=defColor||defaultTextColor||'#'+(TC.dk1||'000000');
 
-      // Font — build a stack that matches the installed family + implied weight
+      // Font - build a stack that matches the installed family + implied weight
       const latinEl=rPr?.getElementsByTagNameNS(NSMAP.a,'latin')[0];
       const rawTf=latinEl?.getAttribute('typeface');
       const ff=rawTf?resolveTypeface(rawTf,TC):(defFont||defaultFont||null);
@@ -1262,7 +1262,7 @@ function foText(txBody, box, TC, defaultFont, defaultTextColor, txLevels) {
       const italOut=ital||fst.italic;
 
       // white-space: pre-line (NOT pre-wrap). Chromium mis-wraps pre-wrap text inside
-      // a scaled SVG <foreignObject> — it wraps far narrower than the box, causing
+      // a scaled SVG <foreignObject> - it wraps far narrower than the box, causing
       // overflow/overlap on non-16:9 or scaled decks. pre-line wraps correctly and
       // still honors newlines; runs of spaces collapse (negligible, and cleaner).
       const style=`font-size:${fs}px;color:${color};font-family:${fst.family};font-weight:${wgt};${italOut?'font-style:italic;':''}${uline?'text-decoration:underline;':''}${strike?'text-decoration:line-through;':''}white-space:pre-line;`;
@@ -1373,7 +1373,7 @@ function buildPhMap(doc, sx, sy){
 
 // Convert a DrawingML <a:custGeom> into an SVG path "d" string, mapping the
 // path's own coordinate space (w×h on <a:path>) into the shape's box (x,y,w,h).
-// Freeforms with inner+outer subpaths form frames — rendered with fill-rule:evenodd.
+// Freeforms with inner+outer subpaths form frames - rendered with fill-rule:evenodd.
 function custGeomPath(cg, x, y, w, h){
   const pathLst=cg.getElementsByTagNameNS(NSMAP.a,'pathLst')[0];
   if(!pathLst)return null;
@@ -1393,7 +1393,7 @@ function custGeomPath(cg, x, y, w, h){
         case 'cubicBezTo': if(pts.length>=3)d+=`C${pts.slice(0,3).map(p=>`${X(p.getAttribute('x'))},${Y(p.getAttribute('y'))}`).join(' ')} `; break;
         case 'quadBezTo':  if(pts.length>=2)d+=`Q${pts.slice(0,2).map(p=>`${X(p.getAttribute('x'))},${Y(p.getAttribute('y'))}`).join(' ')} `; break;
         case 'close':  d+='Z '; break;
-        // arcTo (wR/hR/stAng/swAng) is rare in slide graphics — skipped for now
+        // arcTo (wR/hR/stAng/swAng) is rare in slide graphics - skipped for now
       }
     }
   }
@@ -1426,7 +1426,7 @@ function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap,phLst){
   const phType=ph?.getAttribute('type')||'';
   const phIdx=ph?.getAttribute('idx')||'';
   // Placeholder with no xfrm → look up from layout/master map
-  // Empty type means body placeholder — look up 't:body' not 't:'
+  // Empty type means body placeholder - look up 't:body' not 't:'
   if(!b&&ph&&phMap){
     const lookupType=phType||'body';
     b=phMap['t:'+lookupType]||phMap['i:'+phIdx]||null;
@@ -1448,7 +1448,7 @@ function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap,phLst){
   }
 
   // Fill: explicit spPr > solidFill/gradFill/noFill, else style fillRef, else transparent for ph
-  // IMPORTANT: only consider fills that are DIRECT children of spPr — a descendant
+  // IMPORTANT: only consider fills that are DIRECT children of spPr - a descendant
   // search would wrongly pick up <a:noFill>/<a:solidFill> nested inside <a:ln> or effects.
   const dChild=(parent,ln)=>{if(!parent)return null;for(const c of parent.children){if(c.namespaceURI===NSMAP.a&&c.localName===ln)return c;}return null;};
   let gradDefs='';
@@ -1618,7 +1618,7 @@ function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap,phLst){
   }else{
     shape=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}"${A('fill',fill)}${A('stroke',stroke)}${A('stroke-width',sw)} ${TR}/>`;
   }
-  // txStyle levels from master — only for real placeholder shapes
+  // txStyle levels from master - only for real placeholder shapes
   // isBodyPh requires ph to exist (phType==='' on a non-ph shape must not use bodyStyle)
   const isTitlePh = ph && (phType==='title'||phType==='ctrTitle');
   const isBodyPh  = ph && (phType==='body'||phType==='obj'||phType===''||phType==='subTitle');
@@ -1651,7 +1651,7 @@ function renderSpSvg(el,sx,sy,TC,sRels,entries,slidePn,defaultFont,phMap,phLst){
       };
     });
   } else if(layoutLst && !masterLevels){
-    // No master txStyle — build from layout lstStyle alone
+    // No master txStyle - build from layout lstStyle alone
     txLevels=[];
     for(let i=0;i<9;i++){
       const lp=layoutLst.getElementsByTagNameNS(NSMAP.a,`lvl${i+1}pPr`)[0];
@@ -1696,7 +1696,7 @@ function renderPicSvg(el,sx,sy,sRels,entries){
   const imgKey=rel?Object.keys(entries||{}).find(k=>k.endsWith(rel.target.split('/').pop())):null;
   const TR=rot?`transform="rotate(${rot.toFixed(2)},${(x+w/2).toFixed(1)},${(y+h/2).toFixed(1)})"`:''
   // PowerPoint fills the picture frame (a:stretch/fillRect is the default), so the
-  // image should fill the box — NOT letterbox ("meet"), which would shrink logos.
+  // image should fill the box - NOT letterbox ("meet"), which would shrink logos.
   // a:srcRect (crop) → fill+crop ("slice"); plain stretch/default → "none".
   const hasCrop=blipFill?.getElementsByTagNameNS(NSMAP.a,'srcRect')[0];
   const par=hasCrop?'xMidYMid slice':'none';
@@ -2181,14 +2181,14 @@ function renderSlideToSvg(slideIdx, reqW, reqH) {
   const SW=a.slideWidth||12192000, SH=a.slideHeight||6858000;
   // FIXED coordinate system: 1 SVG unit = 1 point (EMU/12700). The viewBox equals
   // the slide measured in points, INDEPENDENT of the requested display size. Because
-  // font sizes are also in points, text stays consistent at every size — so the rail
+  // font sizes are also in points, text stays consistent at every size - so the rail
   // thumbnails and the main stage render identically (just scaled). The slide aspect
   // ratio is preserved by the viewBox; the display box letterboxes via SVG.
   const PT=12700;
   const sx=1/PT, sy=1/PT;
   const W=+(SW/PT).toFixed(2), H=+(SH/PT).toFixed(2);
   const dispW=reqW||W, dispH=reqH||H;
-  // Resolve THIS slide's master (each layout points to its own master) — masters
+  // Resolve THIS slide's master (each layout points to its own master) - masters
   // differ in background AND clrMap (dark masters invert bg1/tx1).
   const masterPn=slide.masterPartname||a.masterPn;
   const masterInfo=a.masters?.[masterPn];
@@ -2209,7 +2209,7 @@ function renderSlideToSvg(slideIdx, reqW, reqH) {
   const doc=parseXml(slideData);
   const sRels=parseRels(S.entries?.[relsKey(slide.partname)]);
 
-  // Apply slide-level clrMapOvr — overrideClrMapping remaps symbolic color slots
+  // Apply slide-level clrMapOvr - overrideClrMapping remaps symbolic color slots
   const clrMapOvr=doc.getElementsByTagNameNS(NSMAP.p,'clrMapOvr')[0];
   const ovr=clrMapOvr?.getElementsByTagNameNS(NSMAP.a,'overrideClrMapping')[0];
   if(ovr){
@@ -2264,7 +2264,7 @@ function renderSlideToSvg(slideIdx, reqW, reqH) {
     }
   }
 
-  // Background image — check slide, then layout, then master
+  // Background image - check slide, then layout, then master
   function extractBgImg(d, rels){
     const bg=d.getElementsByTagNameNS(NSMAP.p,'bg')[0];
     const bgPr=bg?.getElementsByTagNameNS(NSMAP.p,'bgPr')[0]||d.getElementsByTagNameNS(NSMAP.p,'bgPr')[0];
@@ -2296,7 +2296,7 @@ function renderSlideToSvg(slideIdx, reqW, reqH) {
   return`<svg width="${dispW}" height="${dispH}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">${bgDefs}<rect width="${W}" height="${H}" fill="${bgFillAttr}"/>${bgImgEl}${masterShapes}${layoutShapes}${slideShapes}</svg>`;
 }
 
-// Thumbnail — fast colored-rect version (no foreignObject overhead for 20+ thumbs)
+// Thumbnail - fast colored-rect version (no foreignObject overhead for 20+ thumbs)
 function renderSlideSvg(slide, analysis) {
   const W=168, H=94;
   const SW=analysis.slideWidth||12192000, SH=analysis.slideHeight||6858000;
@@ -2578,7 +2578,7 @@ function buildSlideXml(spec) {
     );
     shp = ph('title',null,'Title 1',spec.title||'') + ph(null,1,'Content 2',bullets);
   } else if (type==='timeline' && spec.phases?.length) {
-    const bullets = spec.phases.map(p => ({text:p.label+(p.sub?' — '+p.sub:''),level:0}));
+    const bullets = spec.phases.map(p => ({text:p.label+(p.sub?' - '+p.sub:''),level:0}));
     shp = ph('title',null,'Title 1',spec.title||'') + ph(null,1,'Content 2',bullets);
   } else if (type==='waterfall' && spec.items?.length) {
     const bullets = spec.items.map(it =>
@@ -2662,7 +2662,7 @@ function buildSlideXml(spec) {
   } else {
     const bullets = normalizeBullets(spec.bullets||spec.items||[]);
     let extra = [];
-    if (!bullets.length) extra.push({text:`[${SLIDE_LABELS[type]||type} — Inhalt in PowerPoint ergänzen]`,level:0});
+    if (!bullets.length) extra.push({text:`[${SLIDE_LABELS[type]||type} - Inhalt in PowerPoint ergänzen]`,level:0});
     shp = ph('title',null,'Title 1',spec.title||'')
         + ph(null,1,'Content 2',[...bullets,...extra]);
   }
@@ -2937,7 +2937,7 @@ async function handleModalSave() {
   const errEl = document.getElementById('modal-save-error');
   const btn   = document.getElementById('modal-save-btn');
   if (!key) { errEl.textContent='Bitte einen API-Schlüssel eingeben.'; errEl.style.display='block'; return; }
-  if (!_adminSession?.access_token) { errEl.textContent='Sitzung abgelaufen — bitte erneut anmelden.'; errEl.style.display='block'; showModalLoginStep(); return; }
+  if (!_adminSession?.access_token) { errEl.textContent='Sitzung abgelaufen - bitte erneut anmelden.'; errEl.style.display='block'; showModalLoginStep(); return; }
   btn.disabled=true; btn.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Speichert…';
   try {
     if (SLIDE_TOKENLESS) {
@@ -3048,7 +3048,7 @@ function updateSlideStats(idx) {
 
   const c = slide.counts || {};
   const cardTitle = document.querySelector('#slide-elem-card .stats-card-title');
-  if (cardTitle) cardTitle.textContent = `Folie ${idx+1} — Elemente`;
+  if (cardTitle) cardTitle.textContent = `Folie ${idx+1} - Elemente`;
 
   // Per-slide stat rows
   const rows = [
@@ -3111,7 +3111,7 @@ function renderRail() {
     if(c.charts) chips.push(`<span class="meta-chip chart"><i class="fa-solid fa-chart-bar"></i> ${c.charts}</span>`);
     if(c.tables) chips.push(`<span class="meta-chip table"><i class="fa-solid fa-table"></i> ${c.tables}</span>`);
     if(c.images) chips.push(`<span class="meta-chip img"><i class="fa-solid fa-image"></i> ${c.images}</span>`);
-    // Preview is rendered lazily (see below) — rendering all slides' full-res
+    // Preview is rendered lazily (see below) - rendering all slides' full-res
     // images at once can embed tens of MB and freeze the page on large decks.
     return `<div class="slide-thumb${i===S.activeSlide?' active':''}" data-idx="${i}">
       <div class="slide-thumb-preview" data-idx="${i}"></div>
@@ -3124,7 +3124,7 @@ function renderRail() {
   }).join('');
   // Render each thumbnail's real (1:1) SVG. The first batch renders eagerly (so the
   // rail is never blank even if layout/observer is unavailable); the rest render
-  // lazily on scroll — rendering ALL at once embeds every slide's full-res images
+  // lazily on scroll - rendering ALL at once embeds every slide's full-res images
   // and can freeze the page on large decks.
   const renderThumb=(prev)=>{
     if(!prev||prev.dataset.rendered)return;
@@ -3536,7 +3536,7 @@ async function buildScanSlides(page, deck){
   for(let y=0;y<H;y++){ let dark=0,c=0; const base=y*W*4; for(let x=0;x<W;x+=STEP){ const o=base+x*4; if((d[o]+d[o+1]+d[o+2])/3<INK) dark++; c++; } rowInk[y]=dark/c; }
   // Find content band(s): rows with ink, merged across small gaps. Each strong
   // band = one real landscape slide; thin/weak bands (spiral binding, a stray
-  // footer line on an otherwise empty back-side) are dropped — so empty halves
+  // footer line on an otherwise empty back-side) are dropped - so empty halves
   // and back-sides disappear and 1-vs-2 slides per sheet is detected.
   const sm=new Float32Array(H); for(let y=0;y<H;y++){ let s=0,c=0; for(let k=-2;k<=2;k++){const yy=y+k; if(yy>=0&&yy<H){s+=rowInk[yy];c++;}} sm[y]=s/c; }  // light smoothing kills isolated desk/JPEG noise
   const CONT=0.013, MERGE=H*0.05;
@@ -4049,7 +4049,7 @@ async function generateAndDownload() {
     hint.textContent=S.draftSpec.slides.length+' Folie(n) hinzugefügt';
     toast(S.draftSpec.slides.length+' neue Folie(n) generiert','success');
   } catch(err) {
-    hint.textContent='Fehler — bitte erneut versuchen';
+    hint.textContent='Fehler - bitte erneut versuchen';
     toast('Generierungsfehler: '+err.message,'error');
   } finally { btn.disabled=false; }
 }

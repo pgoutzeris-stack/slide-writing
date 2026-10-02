@@ -4,9 +4,9 @@ A :class:`Deck` wraps an OPC package plus its parsed design model
 (:class:`~slidewriting.model.TemplateInfo`) and offers the three core
 operations of the library:
 
-* ``Deck.open(path)`` — load an existing ``.pptx`` template,
-* ``Deck.create()`` — bootstrap a clean default template from scratch,
-* ``deck.add_slide(...)`` / ``deck.save(path)`` — queue new slides built
+* ``Deck.open(path)`` - load an existing ``.pptx`` template,
+* ``Deck.create()`` - bootstrap a clean default template from scratch,
+* ``deck.add_slide(...)`` / ``deck.save(path)`` - queue new slides built
   with :class:`~slidewriting.slide.SlideBuilder` and flush them into the
   package on save.
 
@@ -129,7 +129,7 @@ class Deck:
         """Queue a new slide and return its :class:`~slidewriting.slide.SlideBuilder`.
 
         ``layout`` selects the slide layout: a :class:`LayoutSpec`, a layout
-        query (name, type, substring, or index — see :meth:`layout`), or
+        query (name, type, substring, or index - see :meth:`layout`), or
         ``None`` for the default layout (type ``"obj"`` if present, else the
         first layout). The slide part itself is only created on :meth:`save`.
         """

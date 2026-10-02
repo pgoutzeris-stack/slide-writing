@@ -10,7 +10,7 @@ from ARCHITECTURE.md section 1 against a live :class:`~slidewriting.opc.Package`
 5. append a ``<p:sldId>`` entry to ``p:sldIdLst`` in ``presentation.xml``.
 
 Images arrive from :class:`~slidewriting.slide.SlideBuilder` as
-``pending_images`` — pairs of a temporary relationship token (``"img:N"``)
+``pending_images`` - pairs of a temporary relationship token (``"img:N"``)
 and the raw blob. The writer registers each blob as a deduplicated media
 part, adds an ``RT_IMAGE`` relationship from the new slide part, and
 byte-replaces the temporary tokens with the real rIds before the slide part

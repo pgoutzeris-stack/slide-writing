@@ -104,7 +104,7 @@ def run_el(text: str, fmt: RunFormat | None = None, lang: str = "de-DE") -> ET.E
 
     The ``<a:rPr>`` element is emitted only when ``fmt`` carries at least one
     set field; otherwise the run fully inherits its formatting. Text is never
-    pre-escaped — ElementTree handles ``&``, ``<``, ``>`` etc. on serialize.
+    pre-escaped - ElementTree handles ``&``, ``<``, ``>`` etc. on serialize.
     """
     run = el("a:r")
     if fmt is not None and _has_run_formatting(fmt):

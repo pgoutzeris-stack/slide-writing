@@ -1,4 +1,4 @@
-"""Slide Writing — zero-dependency PowerPoint (PPTX) engine."""
+"""Slide Writing - zero-dependency PowerPoint (PPTX) engine."""
 
 __version__ = "1.0.0"
 

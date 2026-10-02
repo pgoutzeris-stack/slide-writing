@@ -533,7 +533,7 @@ def build_from_spec(spec: dict, template_path: Union[str, None] = None) -> Deck:
     index. ``template_path`` overrides ``spec["template"]``; when neither is
     given, the bootstrap default template is created with
     ``spec.get("accent", "206EFB")`` as accent color. The returned deck has
-    all slides queued — call :meth:`Deck.save` to write the file.
+    all slides queued - call :meth:`Deck.save` to write the file.
     """
     problems = validate_spec(spec)
     if problems:

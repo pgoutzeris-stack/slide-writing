@@ -9,7 +9,7 @@ comparison matrices, callout boxes, and section numbers.
 
 Design rules (ARCHITECTURE.md section 3.12):
 
-* All geometry is computed from ``slide.width`` / ``slide.height`` — nothing
+* All geometry is computed from ``slide.width`` / ``slide.height`` - nothing
   assumes a fixed slide size. The default content area starts at
   ``x = cm(1.2)``, ``y = cm(3.2)`` (below the title) and keeps a margin of
   ``cm(1.2)`` to the right and bottom slide edges.
@@ -139,7 +139,7 @@ def _delta_color(delta: str) -> str:
     stripped = delta.strip()
     if stripped.startswith("+"):
         return _GREEN
-    if stripped.startswith(("-", "−", "–")):
+    if stripped.startswith(("-", "−", "-")):
         return _RED
     return "tx1"
 
@@ -298,7 +298,7 @@ def add_kpi_row(slide: "SlideBuilder", kpis: list, box: Box = None) -> None:
     "delta": "+3 pp" | None, "color": scheme-slot | None}``. Tiles are
     light rounded rectangles (``bg2``); the value is rendered 30 pt bold in
     ``accent1`` (or the KPI's ``color``), the label 11 pt ``tx1``, and the
-    delta 11 pt — green for ``+…``, red for ``-…``.
+    delta 11 pt - green for ``+…``, red for ``-…``.
 
     Args:
         slide: Target slide builder.
